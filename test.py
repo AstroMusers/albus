@@ -1,163 +1,87 @@
-from injections import generate_lightcurve
+import random
+import pandas as pd
+import csv
 import numpy as np
-from matplotlib import pyplot as plt
-import astropy
-from scipy.signal import medfilt
+from tqdm import tqdm
+import os
 import lightkurve as lk
+from lightkurve import LightCurve
+from matplotlib.ticker import ScalarFormatter
+from matplotlib import pyplot as plt
+from preprocess import preprocess
+from injections import generate_lightcurve, inject_transit
+from BLSFit import BLSfit, BLSResults, FoldedLC, BLSOutput
+from tests import test_period, test_duration, test_depth, test_v_shape, test_snr, test_out_of_transit_variability
 
-time, flux, tduration = generate_lightcurve(
-    radius_star=0.01,            # Approx. radius of a white dwarf
-    mass_star= 0.6 * 2 * 10**30, # Approx. mass of white dwarf
-    radius_planet= 0.01,          # Radius of a typical Hot Jupiter
-    luminosity_star=0.001,       # White dwarf luminosity in Solar units
-    albedo_planet=0.1,           # Typical albedo of a gas giant
-    period=5,                    # Orbital period
-    inclination=90,              # Inclination of transit
-    time_array=np.arange(0, 10, 0.01)
-)
+preprocessed_lc = preprocess('WD 1856+534 b', TICID = False, injection = False)
 
-flatlc = lk.LightCurve(time=time, flux=flux)
-flatlc.scatter()
-plt.show()
-print('generated')
+def create_transit_mask_manual(time, period, t0, duration):
+    """
+    Create a transit mask manually given a time array and transit parameters,
+    converting astropy Time objects and Quantities to plain floats (in days).
 
-maxday = 10
-minday = 1
-periods = np.logspace(np.log10(minday), np.log10(maxday), num=2048)
-durations = []
-for period in periods:
-    durations.append(period*0.01)
+    Parameters:
+        time (array-like or astropy.time.core.Time): Time array in days or a Time object.
+        period (float or Quantity): Transit period in days.
+        t0 (float or Time or Quantity): Transit mid-point (epoch) in days.
+        duration (float or Quantity): Transit duration in days.
 
-# Replace with astropy
-pg = astropy.timeseries.BoxLeastSquares(flatlc['time'], flatlc['flux'])
-results = pg.power(periods, durations)
-print("bls")
-# print(results.period)
+    Returns:
+        mask (np.array of bool): Boolean array marking in-transit points.
+    """
+    import numpy as np
+    from astropy.time import Time
+    from astropy import units as u
 
-# Find the period with the highest power
-index = np.argmax(results.power)
-best_period = results.period[index]
-t0 = results.transit_time[index]
-duration = results.duration[index]
-# print(f'best period: {best_period}')
+    # Convert time to a plain numpy array of floats (in days)
+    if isinstance(time, Time):
+        time = np.array(time.jd, dtype=float)
+    else:
+        time = np.array(time, dtype=float)
 
-num_bins = 48
-bins = np.logspace(np.log10(1), np.log10(10), num_bins + 1)
-
-# Calculate the mean and standard deviation for each bin
-bin_centers = []
-bin_means = []
-bin_stds = []
-
-periods = np.array(results.period.value)
-powers = np.array(results.power.value)
-
-ptrend = medfilt(powers, kernel_size=101)
-detrended_power = powers - ptrend
-powers = detrended_power
-
-high_powers = [results.power[index].value]
-high_periods = [best_period.value]
-sorted_indices = np.argsort(powers)[::-1]
-
-# Proportional threshold
-lower_bound = 0.8  # Lower bound multiplier
-upper_bound = 1.2  # Upper bound multiplier
-
-sorted_powers = powers[sorted_indices]
-sorted_periods = periods[sorted_indices]
-print(sorted_periods[:20])
-
-for speriod, spower in zip(sorted_periods[1:], sorted_powers[1:]):
-    add_to_high = True
-    for hperiod in high_periods:
-        if lower_bound * hperiod <= speriod <= upper_bound * hperiod:
-            add_to_high = False
-            break
-    if add_to_high:
-        high_periods.append(speriod)
-        high_powers.append(spower)
-    if len(high_periods) >= 4:  # Stop after 4 clusters
-        break
-
-x, y = [], []
-
-# print("High Periods (up to 4 clusters):", high_periods)
-# print("Corresponding Powers:", high_powers)
-for i in range(len(high_periods)):
-    for j in range(len(high_periods)):
-        if i != j:
-            print(f'Ratio P_{i}/P_{j}: ', high_periods[i]/high_periods[j])
-            x.append(high_periods[i]/high_periods[j])
-            print(f'Ratio P_{i}/P_{j}: ', high_powers[i]/high_powers[j])
-            y.append(high_powers[i]/high_powers[j])
-
-plt.plot(x, y, 'o')
-plt.plot([0, 5], [0, 5], 'r--')
-plt.xlabel('Period Ratio')
-plt.ylabel('Power Ratio')
-plt.title('Period Ratio vs Power Ratio of Periodogram Peaks')
-plt.show()
-
-print(x)
-print(y)
-
-for i in range(num_bins):
-    # Mask for the current bin
-    bin_mask = (periods >= bins[i]) & (periods < bins[i + 1])
+    # Convert period to a plain float in days.
+    if hasattr(period, 'to_value'):
+        period = period.to_value(u.day)
+    else:
+        period = float(period)
     
-    # Extract values within the current bin
-    bin_periods = periods[bin_mask]
-    bin_powers = powers[bin_mask]
+    # Convert t0: if it's a Time object, use .jd; if Quantity, use to_value(u.day); otherwise, float.
+    if isinstance(t0, Time):
+        t0 = t0.jd
+    elif hasattr(t0, 'to_value'):
+        t0 = t0.to_value(u.day)
+    else:
+        t0 = float(t0)
     
-    # Calculate the 1.5 IQR range for outlier filtering
-    q1, q3 = np.percentile(bin_powers, [25, 75])
-    iqr = q3 - q1
-    lower_bound = q1 - 1.5 * iqr
-    upper_bound = q3 + 1.5 * iqr
-    
-    # Filter out outliers
-    filtered_powers = bin_powers[(bin_powers >= lower_bound) & (bin_powers <= upper_bound)]
-    
-    # Calculate the bin center, mean, and standard deviation without outliers
-    bin_centers.append(np.median(bin_periods))  # Center of each bin
-    bin_means.append(np.median(filtered_powers))  # Mean of y-values in each bin
-    bin_stds.append(np.std(filtered_powers))  # Std deviation of y-values in each bin
+    # Convert duration similarly.
+    if hasattr(duration, 'to_value'):
+        duration = duration.to_value(u.day)
+    else:
+        duration = float(duration)
 
-bin_centers = np.array(bin_centers)
-bin_means = np.array(bin_means)
-bin_stds = np.array(bin_stds)
+    # Compute the phase relative to transit mid-point.
+    phase = ((time - t0 + 0.5 * period) % period) - 0.5 * period
+    return np.abs(phase) < 0.5 * duration
 
-plt.semilogx(periods, powers, label=f'Periodogram of Ideal Transit')
-plt.semilogx(bin_centers, bin_means, 'r-', label='Median')
 
-for n in range(5):
-    if best_period.value/(n+1) > 1:
-        plt.axvline(best_period.value/(n+1), ls=':', color='r', alpha=0.5)
-    if best_period.value*(n+1) < 10:
-        plt.axvline(best_period.value*(n+1), ls=':', color='r', alpha=0.5)
+results = BLSfit(preprocessed_lc)
+high_periods, high_powers, best_period, t0, duration = BLSResults(results, plot='show')
+transit_mask = create_transit_mask_manual(preprocessed_lc.time, best_period, t0, duration)
+print(best_period)
 
-plt.fill_between(bin_centers, bin_means - 1*bin_stds, bin_means + 1*bin_stds, color='gray', alpha=0.3, label='1σ Band')
-plt.fill_between(bin_centers, bin_means - 2*bin_stds, bin_means + 2*bin_stds, color='gray', alpha=0.3, label='2σ Band')
-plt.fill_between(bin_centers, bin_means - 3*bin_stds, bin_means + 3*bin_stds, color='gray', alpha=0.3, label='3σ Band')
+period = test_period(results)
+duration = test_duration(results)
+depth = test_depth(preprocessed_lc.time, preprocessed_lc.flux, transit_mask)
+vshape = test_v_shape(preprocessed_lc.time, preprocessed_lc.flux, transit_mask)
+snr = test_snr(preprocessed_lc.flux, transit_mask)
+oot_variability = test_out_of_transit_variability(preprocessed_lc.flux, transit_mask)
 
-# Labels and legend
-plt.xlabel('Period')
-plt.ylabel('Power')
-plt.legend()
-plt.title(f'BLS Periodogram for Ideal Transit')
-# plt.savefig(f'/Users/aavikwadivkar/Documents/Exoplanets/Research/WD_Plots4/{tic_id}_blsplot.png')
-plt.show()
-plt.close()
+print("Transit Period (days):", period)
+print("Transit Duration (days):", duration)
+print("Transit Depth:", depth)
+print("V-Shape:", vshape)
+print("SNR:", snr)
+print("OOT Variability:", oot_variability)
 
-# Fold the light curve at the best period
-folded_lc = flatlc.fold(period=best_period, epoch_time = t0)
-
-# Plot the folded light curve
-folded_lc.scatter()
-plt.xlabel('Phase [JD]')
-plt.ylabel('Normalized Flux')
-plt.title(f'Ideal Folded Light Curve at Period = {str(round(best_period.value, 3))} days')
-# plt.savefig(f'/Users/aavikwadivkar/Documents/Exoplanets/Research/WD_Plots4/{tic_id}_foldedlc.png')
-plt.show()
-plt.close()
+# folded_lc = FoldedLC(preprocessed_lc, 1.40793925, 0, plot='show', bin = True)
+# preprocessed_lc.scatter()

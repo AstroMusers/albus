@@ -2,9 +2,10 @@ import lightkurve as lk
 import numpy as np
 from scipy.signal import medfilt
 
-def preprocess(tic_id, injection = False):
+def preprocess(input, TICID = True, injection = False):
 # Download the TESS light curve for a specific TIC ID
-    search_result = lk.search_lightcurve(f"TIC {tic_id}", mission='TESS')
+    if TICID: search_result = lk.search_lightcurve(f"TIC {input}", mission='TESS')
+    else: search_result = lk.search_lightcurve(input, mission='TESS')
     print("search has resulted")
 
     try:

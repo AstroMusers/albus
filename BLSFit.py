@@ -18,12 +18,17 @@ def BLSfit(flatlc):
         durations.append(period*0.01)
 
     # Replace with astropy
-    pg = astropy.timeseries.BoxLeastSquares(flatlc['time'], flatlc['flux'])
-    results = pg.power(periods, durations)
-    print("bls")
-    return results
+    # pg = astropy.timeseries.BoxLeastSquares(flatlc['time'], flatlc['flux'])
+    # results = pg.power(periods, durations)
+    # print(len(np.array(periods)))
+    pg = flatlc.to_periodogram(method='bls', period=np.array(periods), duration=np.array(durations), frequency_factor=5000)
+    # results = pg.flatten()
 
-def BLSResults(results, ID, folder='WD_Plots4'):
+    print("bls")
+    # return results
+    return pg
+
+def BLSResults(results, folder='', ID='', plot='save'):
 
     # Find the period with the highest power
     index = np.argmax(results.power)
@@ -62,7 +67,6 @@ def BLSResults(results, ID, folder='WD_Plots4'):
             high_powers.append(spower)
         if len(high_periods) >= 4:  # Stop after 4 clusters
             break
-
     # Plot the BLS periodogram
     num_bins = 48
     bins = np.logspace(np.log10(1), np.log10(10), num_bins + 1)
@@ -116,37 +120,43 @@ def BLSResults(results, ID, folder='WD_Plots4'):
     plt.ylabel('Power')
     plt.legend()
     plt.title(f'BLS Periodogram for {ID}')
-    plt.savefig(f'/Users/aavikwadivkar/Documents/Exoplanets/Research/{folder}/{ID}_blsplot.png')
+    if plot=='save': plt.savefig(f'/Users/aavikwadivkar/Documents/Exoplanets/Research/{folder}/{ID}_blsplot.png')
+    if plot=='show': plt.show()
     plt.close()
 
-    return high_periods, high_powers, best_period, t0
+    return high_periods, high_powers, best_period, t0, duration
     
 
-def FoldedLC(flatlc, best_period, t0, ID, folder='WD_Plots'):
+def FoldedLC(flatlc, best_period, t0, plot='save', ID='', folder='WD_Plots', bin = False):
 
     folded_lc = flatlc.fold(period=best_period, epoch_time = t0)
-
+    try: period = best_period.value
+    except: period = best_period
     # Plot the folded light curve
     folded_lc.scatter()
     plt.xlabel('Phase [JD]')
     plt.ylabel('Normalized Flux')
-    plt.title(f'ID {ID} Folded Light Curve at Period = {str(round(best_period.value, 3))} days')
-    plt.savefig(f'/Users/aavikwadivkar/Documents/Exoplanets/Research/{folder}/{ID}_foldedlc.png')
+    plt.title(f'ID {ID} Folded Light Curve at Period = {str(round(period, 3))} days')
+    
+    if bin:
+        binned_lc = folded_lc.bin(time_bin_size=0.001)
+        binned_lc.plot(label='Binned Data', color='red')
+
+    if plot=='save': plt.savefig(f'/Users/aavikwadivkar/Documents/Exoplanets/Research/{folder}/{ID}_foldedlc.png')
+    if plot=='show': plt.show()
     plt.close()
     return
-
-    # binned_lc = folded_lc.bin(time_bin_size=0.001)
-
-    # binned_lc.scatter(label='Binned Data')
-    # plt.xlabel('Phase [JD]')
-    # plt.ylabel('Normalized Flux')
-    # plt.title(f'TIC {tic_id} Binned Folded Light Curve at Period = {str(round(best_period.value, 3))} days')
-    # plt.savefig(f'/Users/aavikwadivkar/Documents/Exoplanets/Research/WD_Plots2/{tic_id}_binnedlc.png')
-    # plt.close()
 
 def BLSOutput(ID, tic_id, high_periods, high_powers, output_file):
     with open(output_file, 'a', newline='') as f:
         writer = csv.writer(f)
         # writer.writerow(['ID', 'TIC ID', 'Periods', 'Powers'])
         writer.writerow([ID, tic_id, high_periods, high_powers])
+        f.close()
+
+def BLSTestOutputs(ID, tic_id, period, duration, depth, vshape, snr, oot_variability, output_file):
+    with open(output_file, 'a', newline='') as f:
+        writer = csv.writer(f)
+        # writer.writerow(['ID', 'TIC ID', 'Period', 'Duration', 'Depth', 'V-Shape', 'SNR', 'OOT Variability'])
+        writer.writerow([ID, tic_id, period, duration, depth, vshape, snr, oot_variability])
         f.close()

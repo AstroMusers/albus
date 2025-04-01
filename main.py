@@ -6,17 +6,13 @@ import os
 from matplotlib import pyplot as plt
 from preprocess import preprocess
 from injections import inject_transit
-from BLSFit import BLSfit, BLSResults, FoldedLC, BLSOutput
+from BLSFit import BLSfit, BLSResults, FoldedLC, BLSTestOutputs
+from tests import test_period, test_duration, test_depth, test_v_shape, test_snr, test_out_of_transit_variability, create_transit_mask_manual
 
 df = pd.read_csv('tess_targets_data.csv')
-output_file = 'Pipeline/injected_transits.csv'
+output_file = 'Pipeline/injected_transits_datapoints.csv'
 
-# with open(output_file, 'a', newline='') as f:
-#         writer = csv.writer(f)
-#         writer.writerow(['ID', 'Periods', 'Powers'])
-#         f.close()
-
-out = pd.read_csv('Pipeline/injected_transits.csv')
+out = pd.read_csv('Pipeline/injected_transits_datapoints.csv')
 lc = None
 
 res = 5
@@ -35,7 +31,8 @@ for i in range(res):
                     rand = random.randint(1, 1291)
                     print(rand)
                     tic_id = int(df['Target ID'][rand])
-                    lc = preprocess(tic_id)
+                    try: lc = preprocess(tic_id, TICID=True)
+                    except: pass
                 
                 # Inject transit
                 inj = inject_transit(ID, tic_id, lc, lc['time'].value,
@@ -49,7 +46,20 @@ for i in range(res):
                 
                 # Run BLS
                 results = BLSfit(inj)
-                high_periods, high_powers, best_period, t0 = BLSResults(results, ID)
-                FoldedLC(lc, best_period, t0, ID)
-                BLSOutput(ID, tic_id, high_periods, high_powers, output_file)
+                high_periods, high_powers, best_period, t0, duration = BLSResults(results, folder='WD_Plots5/lcs', ID=ID)
+                FoldedLC(lc, best_period, t0, ID=ID, folder='WD_Plots5/folded', bin=True)
+                
+                # Run tests
+                depth = test_depth(inj['time'],
+                                   inj['flux'],
+                                   create_transit_mask_manual(inj['time'], best_period, t0, duration
+                                   ))
+                vshape = test_v_shape(inj['time'],
+                                      inj['flux'],
+                                      create_transit_mask_manual(inj['time'], best_period, t0, duration
+                                    ))
+                snr = test_snr(inj['flux'], create_transit_mask_manual(inj['time'], best_period, t0, duration))
+                oot_variability = test_out_of_transit_variability(inj['flux'], create_transit_mask_manual(inj['time'], best_period, t0, duration))
+
+                BLSTestOutputs(ID, tic_id, best_period, duration, depth, vshape, snr, oot_variability, output_file)
                 print('outputted')
