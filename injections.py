@@ -22,8 +22,8 @@ def generate_lightcurve(
     time_array,
     time_resolution=2/(60*24)):
     
-    star_radius_meters = radius_star * 6.957*10**8  # Solar radius to meters
-    planet_radius_meters = radius_planet * 6.9911*10**7  # Jupiter radius to meters
+    star_radius_m = radius_star * 6.957*10**8  # Solar radius to meters
+    planet_radius_m = radius_planet * 6.9911*10**7  # Jupiter radius to meters
 
     # Create a time array
     if isinstance(time_array, float): 
@@ -31,6 +31,7 @@ def generate_lightcurve(
     else: time = np.array(time_array)
 
     a = calc_a(mass_star, period)
+    # print(f"Calculated semi-major axis (a): {a} m")
     fluxratio = albedo_planet*(luminosity_star/(4*np.pi*a**2))
     # Initialize batman parameters
     params = batman.TransitParams()
@@ -38,17 +39,16 @@ def generate_lightcurve(
         params.t0 = time   # Mid-transit time
     else: 
         params.t0 = min(time)
-    params.per = period                   # Planet orbital period
-    params.rp = radius_planet*0.102763    # Planet radius
-    params.a = a/(6.957*10**8)            # Semi-major axis in stellar radii
-    params.inc = inclination              # Inclination in degrees
-    params.ecc = 0                        # Eccentricity
-    params.w = 90                         # Longitude of periastron (unused for circular orbits)
-    params.u = []                         # Limb-darkening coefficients
-    params.fp = fluxratio                 # Planet flux ratio
-    params.limb_dark = "uniform"          # Limb-darkening model
-    params.t_secondary = 0.5             # Time of secondary eclipse
-
+    params.per = period                         # Planet orbital period
+    params.rp = planet_radius_m/star_radius_m   # Planet radius IN STELLAR RADII (NOT SUN)
+    params.a = a/star_radius_m                  # Semi-major axis in STELLAR RADII (NOT SUN)
+    params.inc = inclination                    # Inclination in degrees
+    params.ecc = 0                              # Eccentricity
+    params.w = 90                               # Longitude of periastron (unused for circular orbits)
+    params.u = []                               # Limb-darkening coefficients
+    params.fp = fluxratio                       # Planet flux ratio
+    params.limb_dark = "uniform"                # Limb-darkening model
+    params.t_secondary = 0.5                    # Time of secondary eclipse
 
     # Generate the light curve model
     m = batman.TransitModel(params, time, transittype='primary')
@@ -57,6 +57,7 @@ def generate_lightcurve(
     # Adjust for luminosity and albedo?
     # flux *= luminosity_star * (1 - albedo_planet)
 
+    # print(flux)
     # Normalize the flux
     flux = flux/np.median(flux)
 
@@ -93,7 +94,9 @@ def inject_transit(
         time_array=time_array
     )
 
-    inj = lk.LightCurve(time=ttime, flux=tflux+lc['flux'].value)
+    inj = lk.LightCurve(time=ttime, flux=tflux*lc['flux'].value)
+    # inj = lk.LightCurve(time=ttime, flux=tflux)
+
 
     if folder != '':
         inj.scatter()

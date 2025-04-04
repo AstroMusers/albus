@@ -132,17 +132,19 @@ def FoldedLC(flatlc, best_period, t0, plot='save', ID='', folder='WD_Plots', bin
     folded_lc = flatlc.fold(period=best_period, epoch_time = t0)
     try: period = best_period.value
     except: period = best_period
+    print(f"Folded period: {period}")
     # Plot the folded light curve
     folded_lc.scatter()
     plt.xlabel('Phase [JD]')
     plt.ylabel('Normalized Flux')
-    plt.title(f'ID {ID} Folded Light Curve at Period = {str(round(period, 3))} days')
+    rounded_period = str(round(period, 3))
+    plt.title(f'ID {ID} Folded Light Curve at Period = {rounded_period} days')
     
     if bin:
         binned_lc = folded_lc.bin(time_bin_size=0.001)
         binned_lc.plot(label='Binned Data', color='red')
 
-    if plot=='save': plt.savefig(f'/Users/aavikwadivkar/Documents/Exoplanets/Research/{folder}/{ID}_foldedlc.png')
+    if plot=='save': plt.savefig(f'/Users/aavikwadivkar/Documents/Exoplanets/Research/{folder}/{ID}_{rounded_period}_foldedlc.png')
     if plot=='show': plt.show()
     plt.close()
     return

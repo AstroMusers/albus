@@ -4,84 +4,47 @@ import csv
 import numpy as np
 from tqdm import tqdm
 import os
-import lightkurve as lk
-from lightkurve import LightCurve
-from matplotlib.ticker import ScalarFormatter
 from matplotlib import pyplot as plt
 from preprocess import preprocess
-from injections import generate_lightcurve, inject_transit
-from BLSFit import BLSfit, BLSResults, FoldedLC, BLSOutput
-from tests import test_period, test_duration, test_depth, test_v_shape, test_snr, test_out_of_transit_variability
+from injections import inject_transit, generate_lightcurve
+from BLSFit import BLSfit, BLSResults, FoldedLC, BLSTestOutputs
+from tests import test_period, test_duration, test_depth, test_v_shape, test_snr, test_out_of_transit_variability, create_transit_mask_manual
 
-preprocessed_lc = preprocess('WD 1856+534 b', TICID = False, injection = False)
+df = pd.read_csv('tess_targets_data.csv')
 
-def create_transit_mask_manual(time, period, t0, duration):
-    """
-    Create a transit mask manually given a time array and transit parameters,
-    converting astropy Time objects and Quantities to plain floats (in days).
+lc = None  # Reset lc to None at the start of the iteration
 
-    Parameters:
-        time (array-like or astropy.time.core.Time): Time array in days or a Time object.
-        period (float or Quantity): Transit period in days.
-        t0 (float or Time or Quantity): Transit mid-point (epoch) in days.
-        duration (float or Quantity): Transit duration in days.
+# Find random WD lightcurve
+while lc is None:
+    # rand = random.randint(1, 1291)
+    rand = 244
+    print(rand)
+    tic_id = int(df['Target ID'][rand])
+    try: lc = preprocess(tic_id, TICID=True)
+    except: pass
 
-    Returns:
-        mask (np.array of bool): Boolean array marking in-transit points.
-    """
-    import numpy as np
-    from astropy.time import Time
-    from astropy import units as u
+# print(max(lc['time'].value))
 
-    # Convert time to a plain numpy array of floats (in days)
-    if isinstance(time, Time):
-        time = np.array(time.jd, dtype=float)
-    else:
-        time = np.array(time, dtype=float)
+# Inject transit
+inj = inject_transit("ID", tic_id, lc, lc['time'].value,
+                radius_star = 0.01, 
+                mass_star = 0.6, 
+                radius_planet = 1, 
+                luminosity_star=0.001,
+                albedo_planet=0.1, 
+                period=5, 
+                inclination=90)
 
-    # Convert period to a plain float in days.
-    if hasattr(period, 'to_value'):
-        period = period.to_value(u.day)
-    else:
-        period = float(period)
-    
-    # Convert t0: if it's a Time object, use .jd; if Quantity, use to_value(u.day); otherwise, float.
-    if isinstance(t0, Time):
-        t0 = t0.jd
-    elif hasattr(t0, 'to_value'):
-        t0 = t0.to_value(u.day)
-    else:
-        t0 = float(t0)
-    
-    # Convert duration similarly.
-    if hasattr(duration, 'to_value'):
-        duration = duration.to_value(u.day)
-    else:
-        duration = float(duration)
+# ttime, tflux, tduration = generate_lightcurve(
+#         radius_star=0.01,            # Approx. radius of a white dwarf
+#         mass_star= 0.6, # Approx. mass of white dwarf
+#         radius_planet= 1,          # Radius of a typical Hot Jupiter
+#         luminosity_star=0.001,       # White dwarf luminosity in Solar units
+#         albedo_planet=0.1,           # Typical albedo of a gas giant
+#         period=5,                    # Orbital period
+#         inclination=90,              # Inclination of transit
+#         time_array=lc['time'].value
+#     )
 
-    # Compute the phase relative to transit mid-point.
-    phase = ((time - t0 + 0.5 * period) % period) - 0.5 * period
-    return np.abs(phase) < 0.5 * duration
-
-
-results = BLSfit(preprocessed_lc)
-high_periods, high_powers, best_period, t0, duration = BLSResults(results, plot='show')
-transit_mask = create_transit_mask_manual(preprocessed_lc.time, best_period, t0, duration)
-print(best_period)
-
-period = test_period(results)
-duration = test_duration(results)
-depth = test_depth(preprocessed_lc.time, preprocessed_lc.flux, transit_mask)
-vshape = test_v_shape(preprocessed_lc.time, preprocessed_lc.flux, transit_mask)
-snr = test_snr(preprocessed_lc.flux, transit_mask)
-oot_variability = test_out_of_transit_variability(preprocessed_lc.flux, transit_mask)
-
-print("Transit Period (days):", period)
-print("Transit Duration (days):", duration)
-print("Transit Depth:", depth)
-print("V-Shape:", vshape)
-print("SNR:", snr)
-print("OOT Variability:", oot_variability)
-
-# folded_lc = FoldedLC(preprocessed_lc, 1.40793925, 0, plot='show', bin = True)
-# preprocessed_lc.scatter()
+plt.plot(inj['time'], inj['flux'])
+plt.show()
