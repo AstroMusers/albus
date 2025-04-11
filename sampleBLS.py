@@ -7,7 +7,7 @@ from matplotlib import pyplot as plt
 from preprocess import preprocess
 from injections import inject_transit
 from BLSFit import BLSfit, BLSResults, FoldedLC, BLSTestOutputs
-from tests import test_period, test_duration, test_depth, test_v_shape, test_snr, test_out_of_transit_variability, create_transit_mask_manual
+from BLStests import test_period, test_duration, test_depth, test_v_shape, test_snr, test_out_of_transit_variability, create_transit_mask_manual
 
 df = pd.read_csv('tess_targets_data.csv')
 # output_file = 'Pipeline/injected_transits_datapoints.csv'
