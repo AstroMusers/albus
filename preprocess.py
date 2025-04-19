@@ -8,14 +8,14 @@ def preprocess(input, TICID = True, injection = False):
     else: search_result = lk.search_lightcurve(input, mission='TESS')
     print("search has resulted")
 
-    try:
-        lcc = search_result.download_all()
+    try: lcc = search_result.download_all()
     except:
-        print('womp womp')
+        print('download failed')
         return
     print("downloaded")
 
     if lcc is None:
+        print('download empty')
         return
 
     lc_list = []

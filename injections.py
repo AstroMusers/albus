@@ -19,11 +19,10 @@ def generate_lightcurve(
     inclination,                # Inclination of orbit
     # t0,
     # time_span,                  # Total time span for observation (in days)
-    time_array,
-    time_resolution=2/(60*24)):
+    time_array):
     
     star_radius_m = radius_star * 6.957*10**8  # Solar radius to meters
-    planet_radius_m = radius_planet * 6.9911*10**7  # Jupiter radius to meters
+    planet_radius_m = radius_planet * 6.957*10**8  # Solar radius to meters
 
     # Create a time array
     if isinstance(time_array, float): 
@@ -85,7 +84,7 @@ def inject_transit(
     
     ttime, tflux, tduration = generate_lightcurve(
         radius_star=radius_star,            # Approx. radius of a white dwarf
-        mass_star= mass_star, # Approx. mass of white dwarf
+        mass_star= mass_star,               # Approx. mass of white dwarf
         radius_planet= radius_planet,          # Radius of a typical Hot Jupiter
         luminosity_star=luminosity_star,       # White dwarf luminosity in Solar units
         albedo_planet=albedo_planet,           # Typical albedo of a gas giant

@@ -20,7 +20,6 @@ res = 5
 for i in range(res):
     for j in range(res):
         for k in tqdm(range(res)):
-            here = 0
             ID = str(i) + str(j) + str(k)
             print(ID)
             if int(ID) not in out['ID'].values:  #  Ensure check is against column values
@@ -63,3 +62,4 @@ for i in range(res):
 
                     BLSTestOutputs(ID, tic_id, period, duration, depth, vshape, snr, oot_variability, output_file)
                 print('outputted')
+                
