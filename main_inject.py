@@ -14,7 +14,7 @@ output_file = '/Users/aavikwadivkar/Documents/Exoplanets/Ampersand/albus/albus/d
 out = pd.read_csv(output_file)
 lc = None
 
-res = 10
+res = 9
 
 for i in range(res):
     for j in range(res):
@@ -26,7 +26,7 @@ for i in range(res):
                 
                 # Find random WD lightcurve
                 while lc is None:
-                    rand = random.randint(1, 1291)
+                    rand = random.randint(1, 1290)
                     print(rand)
                     tic_id = int(df['Target ID'][rand])
                     try: lc = preprocess(tic_id, TICID=True)
@@ -35,8 +35,8 @@ for i in range(res):
                 r_p = ((i+1)/res)**2                        # Range of planet radii from 0.01 to 1
                 period = 1+(10/res)*j                       # Range of periods from 1 to 10 days
                 a = calc_a(0.6, period)/6.957*10**8         # Semi-major axis in meters
-                i_min = np.arccos((0.01+r_p)/a)/np.pi*180   # Minimum transit inclination in degrees
-                i = 90-(k*(90-i_min)/res)                   # Inclination from 90 to i_min degrees
+                inc_min = np.arccos((0.01+r_p)/a)/np.pi*180   # Minimum transit inclination in degrees
+                inc = 90-(k*(90-inc_min)/res)                   # Inclination from 90 to i_min degrees
 
                 # Inject transit
                 inj = inject_transit(ID, tic_id, lc, lc['time'].value,
@@ -46,7 +46,7 @@ for i in range(res):
                                 luminosity_star=0.001,
                                 albedo_planet=0.1, 
                                 period=period,
-                                inclination=i
+                                inclination=inc
                                 )
                 
                 # Run BLS
