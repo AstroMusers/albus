@@ -7,17 +7,20 @@ injected = True
 # if injected:
 dfi = pd.read_csv('data_outputs/injected_transits_output1.csv', header=0)
 snr = np.asarray(dfi[' snr'], float)
+dfi[' snr'] = pd.to_numeric(dfi[' snr'], errors='coerce')
+# snr = dfi.dropna(subset=['snr'])['snr'].values.astype(float)
 
 plt.figure(figsize=(12, 6))
 plt.tight_layout()
 
 # plt.subplot(1, 2, 1)
 
-bins = np.arange(0, 1, 0.01)
+bins = np.arange(0, 10, 0.1)
 print(len([ratio for ratio in snr if ratio > 1]))
 plt.hist(snr, bins=bins, color='green', edgecolor='black', label='Injected', alpha=0.5, cumulative=False)
 plt.xlabel('SNR')
 plt.ylabel('Frequency')
+# plt.xscale('log')
 plt.yscale('log')
 plt.title('SNR Distribution for Injected Transits')
 # else: 
