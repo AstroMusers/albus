@@ -120,14 +120,14 @@ def BLSResults(results, folder='', ID='', plot='save'):
     plt.ylabel('Power')
     plt.legend()
     plt.title(f'BLS Periodogram for {ID}')
-    if plot=='save': plt.savefig(f'/Users/aavikwadivkar/Documents/Exoplanets/Research/{folder}/{ID}_blsplot.png')
+    if plot=='save': plt.savefig(f'../../../Research/{folder}/{ID}_blsplot.png')
     if plot=='show': plt.show()
     plt.close()
 
     return high_periods, high_powers, best_period, t0, duration
     
 
-def FoldedLC(flatlc, best_period, t0, plot='save', ID='', folder='WD_Plots', bin = False):
+def FoldedLC(flatlc, best_period, t0, plot='save', ID='', folder='', bin = False):
 
     folded_lc = flatlc.fold(period=best_period, epoch_time = t0)
     try: period = best_period.value

@@ -6,8 +6,8 @@ injected = True
 
 # if injected:
 dfi = pd.read_csv('data_outputs/injected_transits_output1.csv', header=0)
-snr = np.asarray(dfi[' snr'], float)
-dfi[' snr'] = pd.to_numeric(dfi[' snr'], errors='coerce')
+snr = np.asarray(dfi['snr'], float)
+dfi['snr'] = pd.to_numeric(dfi['snr'], errors='coerce')
 # snr = dfi.dropna(subset=['snr'])['snr'].values.astype(float)
 
 plt.figure(figsize=(12, 6))

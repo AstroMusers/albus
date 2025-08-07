@@ -13,7 +13,6 @@ def generate_lightcurve(
     radius_star,                # Radius of the star (in Solar radii)
     mass_star,                  # Mass of the star (in Solar masses)
     radius_planet,              # Radius of the planet (in Solar radii)
-    luminosity_star,            # Luminosity of the star (arbitrary unit or Solar units)
     albedo_planet,              # Albedo of the planet
     period,                     # Orbital period of the planet (in days)
     inclination,                # Inclination of orbit
@@ -31,7 +30,7 @@ def generate_lightcurve(
 
     a = calc_a(mass_star, period)
     # print(f"Calculated semi-major axis (a): {a} m")
-    fluxratio = albedo_planet*(luminosity_star/(4*np.pi*a**2))
+
     # Initialize batman parameters
     params = batman.TransitParams()
     if time.size == 1:
@@ -45,7 +44,7 @@ def generate_lightcurve(
     params.ecc = 0                              # Eccentricity
     params.w = 90                               # Longitude of periastron (unused for circular orbits)
     params.u = []                               # Limb-darkening coefficients
-    params.fp = fluxratio                       # Planet flux ratio
+    params.fp = albedo_planet                       # Planet flux ratio
     params.limb_dark = "uniform"                # Limb-darkening model
     params.t_secondary = 0.5                    # Time of secondary eclipse
 
@@ -72,21 +71,19 @@ def generate_lightcurve(
     return time, flux, tduration
 
 def inject_transit(
-        ID, tic_id, lc, time_array,
+        tic_id, lc, time_array,
         radius_star = 0.01, 
         mass_star = 0.6 * 2 * 10**30, 
         radius_planet = 0.1, 
-        luminosity_star=0.001,
         albedo_planet=0.1, 
         period=1, 
         inclination=90,
-        folder=''):
+        ID='', folder=''):
     
     ttime, tflux, tduration = generate_lightcurve(
         radius_star=radius_star,            # Approx. radius of a white dwarf
         mass_star= mass_star,               # Approx. mass of white dwarf
         radius_planet= radius_planet,          # Radius of a typical Hot Jupiter
-        luminosity_star=luminosity_star,       # White dwarf luminosity in Solar units
         albedo_planet=albedo_planet,           # Typical albedo of a gas giant
         period=period,                    # Orbital period
         inclination=inclination,              # Inclination of transit
