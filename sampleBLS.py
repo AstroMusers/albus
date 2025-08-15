@@ -58,9 +58,10 @@ inj = inject_transit(tic_id, lc, lc['time'].value,
 
 print(f"Injected light curve: {inj['flux'].value[:10]}...")  # Print first 10 flux values for verification
 
-# Run BLS
+# Run BLSØ
 results = BLSfit(inj)
 high_periods, high_powers, best_period, t0, duration = BLSResults(results, plot='show')
+print(f"Best period: {best_period}, t0: {t0}, duration: {duration}")
 for period in high_periods: 
     FoldedLC(inj, period, t0, plot='show', bin=False)                
     # Run tests

@@ -21,7 +21,10 @@ def BLSfit(flatlc):
     # pg = astropy.timeseries.BoxLeastSquares(flatlc['time'], flatlc['flux'])
     # results = pg.power(periods, durations)
     # print(len(np.array(periods)))
-    pg = flatlc.to_periodogram(method='bls', period=np.array(periods), duration=np.array(durations), frequency_factor=5000)
+    try:
+        pg = flatlc.to_periodogram(method='bls', period=np.array(periods), duration=np.array(durations), frequency_factor=5000)
+    except Exception as e:
+        return f"Error in BLS fit: {e}"
     # results = pg.flatten()
 
     print("bls")
@@ -122,7 +125,7 @@ def BLSResults(results, folder='', ID='', plot='save'):
     plt.title(f'BLS Periodogram for {ID}')
     if plot=='save': plt.savefig(f'../../../Research/{folder}/{ID}_blsplot.png')
     if plot=='show': plt.show()
-    plt.close()
+    plt.close('all')
 
     return high_periods, high_powers, best_period, t0, duration
     
@@ -146,7 +149,7 @@ def FoldedLC(flatlc, best_period, t0, plot='save', ID='', folder='', bin = False
 
     if plot=='save': plt.savefig(f'/Users/aavikwadivkar/Documents/Exoplanets/Research/{folder}/{ID}_{rounded_period}_foldedlc.png')
     if plot=='show': plt.show()
-    plt.close()
+    plt.close('all')
     return
 
 def BLSOutput(ID, tic_id, high_periods, high_powers, output_file):

@@ -1,68 +1,166 @@
+import os
+import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import numpy as np
 from scipy.ndimage import gaussian_filter
-from injections import calc_a
 
-df = pd.read_csv('data_outputs/injected_transits_output2.csv')
+# --------------------- User-tweakable parameters ---------------------
+input_csv = 'data_outputs/injected_transits_output4.csv'
+n_bins_1d = 12           # number of bins for 1D binned averages
+n_bins_2d = 30           # grid resolution for 2D heatmaps (per axis)
+sigma = 1.0              # gaussian blur sigma for heatmaps (set 0 to disable smoothing)
+count_threshold = 1      # minimum counts per 2D bin to consider valid (for masking)
+# --------------------------------------------------------------------
 
-# Clean the 'snr' column: convert to numeric, drop invalid entries
+# Load or create demo data
+if os.path.exists(input_csv):
+    df = pd.read_csv(input_csv)
+    print(f"Loaded file: {input_csv}  (rows: {len(df)})")
+else:
+    print(f"File '{input_csv}' not found.")
+
+# Normalize column names (strip whitespace)
+df = df.rename(columns=lambda c: c.strip())
+
+required_cols = ['r_p', 'real_period', 'inc', 'snr']
+missing = [c for c in required_cols if c not in df.columns]
+if missing:
+    raise ValueError(f"Missing required columns in the CSV: {missing}")
+
+# Clean snr and drop invalid rows
 df['snr'] = pd.to_numeric(df['snr'], errors='coerce')
-df = df.dropna(subset=['snr'])
-print(df['snr'])
+before = len(df)
+df = df.dropna(subset=['snr', 'r_p', 'real_period', 'inc'])
+after = len(df)
+print(f"Dropped {before-after} rows with invalid/missing snr or parameters. Remaining rows: {after}")
 
-# Ensure IDs are three-digit strings, then split into parameters and multiply by 2
-df['ID_str'] = df['ID'].astype(str).str.zfill(3)
-df['radius'] = round(((df['ID_str'].str[0].astype(int) + 1)/10)**2,3)    # Parameter 1 → Radius
-df['period'] = round(1 + (df['ID_str'].str[1].astype(int) * 10)/9,3)     # Parameter 2 → Period
-# df['inclination'] = 90-((df['ID_str'].str[2].astype(int))*
-#                     (90-np.arccos((0.01+((df['ID_str'].str[0].astype(int) + 1)/10)**2)
-#                     /(calc_a(0.6, (1 + (df['ID_str'].str[1].astype(int) * 10)/9))/6.957*10**8))/np.pi*180)/9)
-#                                                                 # Parameter 3 → Inclination
+# extract
+radius = df['r_p'].values
+period = df['real_period'].values
+inc = df['inc'].values
+snr = df['snr'].values
 
-# inc = 90-((df['ID_str'].str[2].astype(int))*
-#           (90-np.arccos((0.01+((df['ID_str'].str[0].astype(int) + 1)/10)**2)
-#         /(calc_a(0.6, (1 + (df['ID_str'].str[1].astype(int) * 10)/9))/6.957*10**8))/np.pi*180)/9)
+# helper: binned summary
+def binned_summary(x, y, n_bins=10):
+    bins = np.linspace(np.nanmin(x), np.nanmax(x), n_bins+1)
+    inds = np.digitize(x, bins) - 1
+    centers = 0.5*(bins[:-1] + bins[1:])
+    means = np.full(n_bins, np.nan)
+    counts = np.zeros(n_bins, int)
+    for i in range(n_bins):
+        mask = inds==i
+        counts[i] = np.count_nonzero(mask)
+        if counts[i] > 0:
+            means[i] = np.nanmean(y[mask])
+    return centers, means, counts, bins
 
-# print(calc_a(0.6, (1 + (df['ID_str'].str[1].astype(int) * 10)/9))/(6.957*10**8))
+# helper: 2D grid
+def compute_2d_grid(x, y, z, nx=20, ny=20):
+    x_edges = np.linspace(np.nanmin(x), np.nanmax(x), nx+1)
+    y_edges = np.linspace(np.nanmin(y), np.nanmax(y), ny+1)
+    x_inds = np.digitize(x, x_edges) - 1
+    y_inds = np.digitize(y, y_edges) - 1
+    grid = np.full((ny, nx), np.nan)
+    counts = np.zeros((ny, nx), int)
+    for xi in range(nx):
+        for yi in range(ny):
+            mask = (x_inds == xi) & (y_inds == yi)
+            counts[yi, xi] = np.count_nonzero(mask)
+            if counts[yi, xi] > 0:
+                grid[yi, xi] = np.nanmean(z[mask])
+    x_centers = 0.5*(x_edges[:-1] + x_edges[1:])
+    y_centers = 0.5*(y_edges[:-1] + y_edges[1:])
+    return x_edges, y_edges, x_centers, y_centers, grid, counts
 
-# Prepare averages
-avg_radius = df.groupby('radius')['snr'].mean().sort_index()
-avg_period = df.groupby('period')['snr'].mean().sort_index()
-pivot = df.groupby(['radius', 'period'])['snr'].mean().unstack()
+# prepare grids
+xp_edges, yp_edges, xp_centers, yp_centers, grid_rp, counts_rp = compute_2d_grid(radius, period, snr, nx=n_bins_2d, ny=n_bins_2d)
+pp_edges, pi_edges, pp_centers, pi_centers, grid_pi, counts_pi = compute_2d_grid(period, inc, snr, nx=n_bins_2d, ny=n_bins_2d)
+xr_edges, xi_edges, xr_centers, xi_centers, grid_ri, counts_ri = compute_2d_grid(radius, inc, snr, nx=n_bins_2d, ny=n_bins_2d)
 
-# Single figure with 3 side-by-side subplots
-# fig, axes = plt.subplots(1, 3, figsize=(18, 5), gridspec_kw={'width_ratios':[1,1,1.2]})
-fig, axes = plt.subplots(1, 3, figsize=(18, 5))
+# smoothing with Gaussian that respects missing bins: use mask-weighted smoothing
+def smooth_grid(grid, counts, sigma=1.0):
+    if sigma is None or sigma <= 0:
+        # don't smooth, but ensure grid remains nan where counts==0
+        out = grid.copy()
+        out[counts < count_threshold] = np.nan
+        return out
+    mask = np.where(np.isfinite(grid), 1.0, 0.0)
+    grid_filled = np.nan_to_num(grid, 0.0)
+    num = gaussian_filter(grid_filled * mask, sigma=sigma, mode='nearest')
+    den = gaussian_filter(mask, sigma=sigma, mode='nearest')
+    with np.errstate(invalid='ignore', divide='ignore'):
+        sm = num / den
+    sm[den == 0] = np.nan
+    sm[counts < count_threshold] = np.nan
+    return sm
 
-# 1D: Avg SNR vs Radius
-axes[0].plot(avg_radius.index, avg_radius.values, marker='o')
-axes[0].set_xlabel(r'Radius $(R_{S})$')
-axes[0].set_ylabel('Average SNR')
-axes[0].set_title('Avg SNR vs Radius')
-axes[0].grid(True)
+sm_rp = smooth_grid(grid_rp, counts_rp, sigma=sigma)
+sm_pi = smooth_grid(grid_pi, counts_pi, sigma=sigma)
+sm_ri = smooth_grid(grid_ri, counts_ri, sigma=sigma)
 
-# 1D: Avg SNR vs Period
-axes[1].plot(avg_period.index, avg_period.values, marker='o')
-axes[1].set_xlabel('Period (days)')
-axes[1].set_title('Avg SNR vs Period')
-axes[1].grid(True)
+# Create single figure with 2 rows x 3 cols
+fig, axes = plt.subplots(2, 3, figsize=(16, 8))
+plt.subplots_adjust(wspace=0.35, hspace=0.35)
 
-# 2D: Heatmap Radius vs Period
-# smoothed = gaussian_filter(pivot.values, sigma=0.5)
-# im = axes[2].pcolormesh(pivot.columns, pivot.index, smoothed, shading='gourand', cmap='viridis')
-im = axes[2].imshow(pivot, aspect='auto', origin='lower', cmap='viridis', interpolation='gaussian')
-axes[2].set_xlabel('Period (days)')
-axes[2].set_ylabel(r'Radius $(R_{S})$')
-axes[2].set_title('Heatmap: Radius vs Period')
-axes[2].set_xticks(range(len(pivot.columns)))
-axes[2].set_xticklabels(pivot.columns, rotation=45)
-axes[2].set_yticks(range(len(pivot.index)))
-axes[2].set_yticklabels(pivot.index)
+# Top row: 1D plots (Radius, Period, Inclination)
+# Radius
+ax = axes[0,0]
+ax.scatter(radius, snr, s=8, alpha=0.25)
+centers, means, counts, _ = binned_summary(radius, snr, n_bins=n_bins_1d)
+ax.plot(centers, means, marker='o', color='C1', linewidth=1.5)
+ax.set_xlabel(r'Radius ($R_{\mathrm{J}}$)')
+ax.set_ylabel('SNR')
+ax.set_title('Radius vs SNR (scatter + binned avg)')
+ax.grid(True, linestyle=':', linewidth=0.5)
 
-# Colorbar for heatmap
-cbar = fig.colorbar(im, ax=axes[2], fraction=0.046, pad=0.04)
-cbar.set_label('Average SNR')
+# Period
+ax = axes[0,1]
+ax.scatter(period, snr, s=8, alpha=0.25)
+centers, means, counts, _ = binned_summary(period, snr, n_bins=n_bins_1d)
+ax.plot(centers, means, marker='o', color='C1', linewidth=1.5)
+ax.set_xlabel('Period (days)')
+ax.set_title('Period vs SNR (scatter + binned avg)')
+ax.grid(True, linestyle=':', linewidth=0.5)
 
-fig.tight_layout()
+# Inclination
+ax = axes[0,2]
+ax.scatter(inc, snr, s=8, alpha=0.25)
+centers, means, counts, _ = binned_summary(inc, snr, n_bins=n_bins_1d)
+ax.plot(centers, means, marker='o', color='C1', linewidth=1.5)
+ax.set_xlabel('Inclination (deg)')
+ax.set_title('Inclination vs SNR (scatter + binned avg)')
+ax.grid(True, linestyle=':', linewidth=0.5)
+
+# Bottom row: heatmaps (Radius vs Period, Period vs Inclination, Radius vs Inclination)
+# Heatmap 1: Radius vs Period (use xp_edges, yp_edges)
+ax = axes[1,0]
+mesh1 = ax.pcolormesh(xp_edges, yp_edges, sm_rp, shading='auto')
+ax.set_xlabel(r'Radius ($R_{\mathrm{J}}$)')
+ax.set_ylabel('Period (days)')
+ax.set_title('Heatmap: Radius vs Period (avg SNR)')
+cbar1 = fig.colorbar(mesh1, ax=ax, fraction=0.046, pad=0.04)
+cbar1.set_label('Average SNR')
+
+# Heatmap 2: Period vs Inclination
+ax = axes[1,1]
+mesh2 = ax.pcolormesh(pp_edges, pi_edges, sm_pi, shading='auto')
+ax.set_xlabel('Period (days)')
+ax.set_ylabel('Inclination (deg)')
+ax.set_title('Heatmap: Period vs Inclination (avg SNR)')
+cbar2 = fig.colorbar(mesh2, ax=ax, fraction=0.046, pad=0.04)
+cbar2.set_label('Average SNR')
+
+# Heatmap 3: Radius vs Inclination
+ax = axes[1,2]
+mesh3 = ax.pcolormesh(xr_edges, xi_edges, sm_ri, shading='auto')
+ax.set_xlabel(r'Radius ($R_{\mathrm{J}}$)')
+ax.set_ylabel('Inclination (deg)')
+ax.set_title('Heatmap: Radius vs Inclination (avg SNR)')
+cbar3 = fig.colorbar(mesh3, ax=ax, fraction=0.046, pad=0.04)
+cbar3.set_label('Average SNR')
+
+plt.suptitle('SNR vs Parameters — 1D and 2D summaries', fontsize=16, y=0.98)
+plt.tight_layout(rect=[0,0,1,0.96])
 plt.show()
+
+print('Done: single figure with 6 subplots generated. Adjust input_csv, n_bins_1d, n_bins_2d, sigma as needed.')

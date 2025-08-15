@@ -18,7 +18,8 @@ def generate_lightcurve(
     inclination,                # Inclination of orbit
     # t0,
     # time_span,                  # Total time span for observation (in days)
-    time_array):
+    time_array,
+    a=None):                # Semi-major axis (optional, calculated if not provided)
     
     star_radius_m = radius_star * 6.957*10**8  # Solar radius to meters
     planet_radius_m = radius_planet * 6.957*10**8  # Solar radius to meters
@@ -28,7 +29,9 @@ def generate_lightcurve(
         time = np.array([time_array])
     else: time = np.array(time_array)
 
-    a = calc_a(mass_star, period)
+    if a is None:
+        a = calc_a(mass_star, period)
+
     # print(f"Calculated semi-major axis (a): {a} m")
 
     # Initialize batman parameters
@@ -78,16 +81,18 @@ def inject_transit(
         albedo_planet=0.1, 
         period=1, 
         inclination=90,
+        a = None,
         ID='', folder=''):
     
     ttime, tflux, tduration = generate_lightcurve(
-        radius_star=radius_star,            # Approx. radius of a white dwarf
+        radius_star=radius_star,            # Approx. radius of a white dwarf (solar radii)
         mass_star= mass_star,               # Approx. mass of white dwarf
         radius_planet= radius_planet,          # Radius of a typical Hot Jupiter
         albedo_planet=albedo_planet,           # Typical albedo of a gas giant
         period=period,                    # Orbital period
         inclination=inclination,              # Inclination of transit
-        time_array=time_array
+        time_array=time_array,
+        a=a
     )
 
     inj = lk.LightCurve(time=ttime, flux=tflux*lc['flux'].value)
