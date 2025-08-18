@@ -5,9 +5,9 @@ import matplotlib.pyplot as plt
 from scipy.ndimage import gaussian_filter
 
 # --------------------- User-tweakable parameters ---------------------
-input_csv = 'data_outputs/injected_transits_output4.csv'
+input_csv = 'data_outputs/injected_transits_output3.csv'
 n_bins_1d = 12           # number of bins for 1D binned averages
-n_bins_2d = 30           # grid resolution for 2D heatmaps (per axis)
+n_bins_2d = 10           # grid resolution for 2D heatmaps (per axis)
 sigma = 1.0              # gaussian blur sigma for heatmaps (set 0 to disable smoothing)
 count_threshold = 1      # minimum counts per 2D bin to consider valid (for masking)
 # --------------------------------------------------------------------
@@ -110,6 +110,7 @@ centers, means, counts, _ = binned_summary(radius, snr, n_bins=n_bins_1d)
 ax.plot(centers, means, marker='o', color='C1', linewidth=1.5)
 ax.set_xlabel(r'Radius ($R_{\mathrm{J}}$)')
 ax.set_ylabel('SNR')
+ax.set_yscale('log')
 ax.set_title('Radius vs SNR (scatter + binned avg)')
 ax.grid(True, linestyle=':', linewidth=0.5)
 
@@ -119,6 +120,7 @@ ax.scatter(period, snr, s=8, alpha=0.25)
 centers, means, counts, _ = binned_summary(period, snr, n_bins=n_bins_1d)
 ax.plot(centers, means, marker='o', color='C1', linewidth=1.5)
 ax.set_xlabel('Period (days)')
+ax.set_yscale('log')
 ax.set_title('Period vs SNR (scatter + binned avg)')
 ax.grid(True, linestyle=':', linewidth=0.5)
 
@@ -128,6 +130,7 @@ ax.scatter(inc, snr, s=8, alpha=0.25)
 centers, means, counts, _ = binned_summary(inc, snr, n_bins=n_bins_1d)
 ax.plot(centers, means, marker='o', color='C1', linewidth=1.5)
 ax.set_xlabel('Inclination (deg)')
+ax.set_yscale('log')
 ax.set_title('Inclination vs SNR (scatter + binned avg)')
 ax.grid(True, linestyle=':', linewidth=0.5)
 
