@@ -158,12 +158,11 @@ while True:
                     albedo_planet=0.1, 
                     period=P_days,
                     inclination=inc,
-                    ID=ID,
-                    a=a / (r_s / 6.957e+8) # Semi-major axis in Solar radii
+                    ID=ID#,
+                    #a=a / (r_s / 6.957e+8) # Semi-major axis in Solar radii. DO NOT UNCOMMENT. BUGGED!
         )
         plt.close('all')
 
-        print()
         fit_fold_and_test(lc, folder='WD_Plots10/Noninjected', output_file=noninj_output_file, Injected=False)
         fit_fold_and_test(inj, folder='WD_Plots10/Injected', output_file=inj_output_file, Injected=True)
 

@@ -36,6 +36,7 @@ r_p = 1                         # Range of planet radii from 0.01 to 1 Earth Rad
 rho = 1186*r_p**0.4483 if r_p < 2.5 else 2296*r_p**-1.413
 roche = np.cbrt((3/2)*np.pi * m_s/(rho))
 a = 4*roche
+print(f"4 Roche lobe radius: {a} m")
 period = np.sqrt((4*np.pi**2*a**3)/(6.67*10**-11*(m_s))) / (24*3600)  # Orbital period in days
 
 # period = 1+(10/res)*j                       # Range of periods from 1 to 10 days
@@ -48,14 +49,14 @@ print(f"r_s: {r_s/6.957e+8} solar radii, e_r_s: {e_r_s/6.957e+8}, r_p: {r_p} r_e
 
 inj = lc
 # Inject transit
-# inj, tduration = inject_transit(tic_id, lc, lc['time'].value,
-#                 radius_star = r_s / 6.957e+8, 
-#                 mass_star = df['MassH'][rand], 
-#                 radius_planet = r_p * 0.01, 
-#                 albedo_planet=0.1, 
-#                 period=period,
-#                 inclination=inc
-#                 )
+inj = inject_transit(tic_id, lc, lc['time'].value,
+                radius_star = r_s / 6.957e+8, 
+                mass_star = df['MassH'][rand], 
+                radius_planet = r_p * 0.01, 
+                albedo_planet=0.1, 
+                period=period,
+                inclination=inc
+                )
 
 # print(f"Injected light curve: {inj['flux'].value[:10]}...")  # Print first 10 flux values for verification
 

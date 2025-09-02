@@ -31,6 +31,7 @@ def generate_lightcurve(
 
     if a is None:
         a = calc_a(mass_star, period)
+        print(f"Calculated semi-major axis (a): {a} m")
 
     # print(f"Calculated semi-major axis (a): {a} m")
 
