@@ -108,7 +108,7 @@ def inject_transit(
         plt.close()
 
 
-    return inj, tduration
+    return inj
 
 def inject_transit_df(df, radius_star, mass_star, radius_planet, luminosity_star, albedo_planet, period, inclination, time_array):
     ttime, tflux, tduration = generate_lightcurve(

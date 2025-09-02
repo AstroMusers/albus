@@ -11,138 +11,164 @@ from BLStests import test_depth, test_v_shape, test_snr, test_out_of_transit_var
 import gc
 
 df = pd.read_csv('tess_targets_data.csv')
-output_file = 'data_outputs/injected_transits_output3.csv'
+inj_output_file = 'data_outputs/injected_transits_output4.csv'
+noninj_output_file = 'data_outputs/noninjected_transits_output4.csv'
 
-out = pd.read_csv(output_file)
-lc = None
+try:
+    out = pd.read_csv(inj_output_file)
+    out_ids = set(pd.to_numeric(out['ID'], errors='coerce').dropna().astype(int))
+except FileNotFoundError:
+    out_ids = set()
 
-res = 20
+# Next numeric ID (monotone)
+next_id = (max(out_ids) + 1) if out_ids else 0
+
+# samples = 400
 G = 6.67e-11
 
-out_ids = set(pd.to_numeric(out['ID'], errors='coerce').dropna().astype(int))
+def sample_power_law(min_val, max_val, alpha, size=None):
+    """
+    Draw from PDF f(x) ∝ x^{-alpha}, on [min_val, max_val].
+    """
+    u = np.random.rand()
+    if alpha == 1.0:
+        # x = min * (max/min)^u
+        return min_val * (max_val / min_val) ** u
+    # Inverse CDF for alpha != 1
+    pow_ = 1.0 - alpha
+    a = min_val**pow_
+    b = max_val**pow_
+    return (a + (b - a) * u) ** (1.0 / pow_)
 
-for i in range(res):
-    for k in range(res):
-        js_to_run = [j for j in range(res) if int(f"{i:02}{k:02}{j:02}") not in out_ids]
-        tqdm.write(f"i={i}, k={k}, js_to_run: {js_to_run}")
-        if not js_to_run:
-            continue
 
-        # print(f"js_to_run: {js_to_run}")
-
-        r_p = 10*(i/res)**2 + 0.5
-        rho = 1186*r_p**0.4483 if r_p < 2.5 else 2296*r_p**-1.413
-
-        j_arr = np.array(js_to_run, dtype=float)
-        scale = 10*(j_arr/res)**2 + 0.5
-        K = (2*np.pi/(24 * 3600)) * np.sqrt((1.5*np.pi)/(G*rho))     # depends on rho, not star mass
-        P_days = K * (scale**1.5)
-
-        viable_js = j_arr[P_days <= 15].astype(int).tolist()
-        if not viable_js:
-            # Nothing in this block can ever pass the period cutoff → mark and skip
-            tqdm.write(f"Skipping i={i}, k={k} as no viable js found within period limit.")
-            out_ids.update(int(f"{i:02}{k:02}{j:02}") for j in js_to_run)
-            continue
-
-        lc = None
-        tic_id = None
-        m_s = None
-        r_s = None
-        e_r_s = None
-
-        for _ in range(10):
-            rand = random.randint(0, len(df) - 1)
-            massH = float(df['MassH'].iloc[rand])
-            tic_id = int(df['Target ID'].iloc[rand])
-            m_s = float(massH * 1.989e30)
-            r_s = np.cbrt(m_s / (1e9 * (4/3 * np.pi)))
-            e_r_s = r_s * (1/3) * df['E_MassH'].iloc[rand] / df['MassH'].iloc[rand]
-            
-            try:
-                print(f"Trying TIC ID {tic_id} with mass {massH} M_sun, radius {r_s/6.957e+8} R_sun")
-                lc = preprocess(tic_id, TICID=True)
-                break
-            except Exception as e:
-                print(f"Failed to preprocess TIC ID {tic_id} due to {e}, retrying...")
-                lc = None
-                continue
-        if lc is None:
-            tqdm.write(f"Failed to find a valid light curve for TIC ID {tic_id} after 10 attempts.")
-            out_ids.update(int(f"{i:02}{k:02}{j:02}") for j in js_to_run)
-            continue
-        tqdm.write(f"Found light curve for TIC ID {tic_id}: r_s={r_s/6.957e+8} solar radii")
-
-        roche = np.cbrt((3/2) * np.pi * m_s / rho)
-
-        for j in tqdm(js_to_run, leave=False, desc=f"Processing i={i}, k={k}"):
-            ID = f"{i:02}{k:02}{j:02}"
-            id_int = int(ID)
-            # print(ID)
-            # if j % 5 == 0:
-            # tqdm.write(f"{ID} processing...")
-
-            a = roche * (10*(j/res)**2 + 0.5)
-            real_period = np.sqrt((4*np.pi**2 * a**3) / (G * m_s)) / (24*3600)
-
-            if real_period > 15:
-                # mark as done so we never revisit it; no LC work
-                out_ids.add(id_int)
-                continue
-
-            # period = 1+(10/res)*j                       # Range of periods from 1 to 10 days
-            # a = calc_a(0.6, period)/6.957*10**8         # Semi-major axis in meters
-            
-            x = np.clip((0.01 + r_p)/a, -1.0, 1.0)
-            inc_min = np.degrees(np.arccos(x))
-            inc = 90 - (k * (90 - inc_min) / res)           # Inclination from 90 to i_min degrees
-
-            print(f"radius of white dwarf: {r_s / 6.957e+8}")
-
-            # Inject transit
-            try:
-                inj = inject_transit(tic_id, lc, lc['time'].value,
-                            radius_star = r_s / 6.957e+8,   # radius of white dwarf in Solar radii
-                            mass_star = massH,              # mass of white dwarf in Solar masses
-                            radius_planet = r_p * 0.01,     # radius of planet in Solar radii
-                            albedo_planet=0.1, 
-                            period=real_period,
-                            inclination=inc,
-                            ID=ID,
-                            a=a / (r_s / 6.957e+8)
-                )
-                plt.close('all')
-            
-                # Run BLS
-                results = BLSfit(inj)
-                high_periods, high_powers, best_period, t0, duration = BLSResults(results, plot='save', folder='WD_Plots9', ID=ID)
-                plt.close('all')
-                
-                rows = []
-                for period in high_periods: 
-                    FoldedLC(inj, period, t0, ID=ID, plot = 'save', folder='WD_Plots9', bin=False)    
-                    plt.close('all')
+def find_light_curve():
+    for _ in range(10):
+        rand = random.randint(0, len(df) - 1)
+        massH = float(df['MassH'].iloc[rand])
+        tic_id = int(df['Target ID'].iloc[rand])
+        m_s = float(massH * 1.989e30)
+        r_s = np.cbrt(m_s / (1e9 * (4/3 * np.pi)))
+        e_r_s = r_s * (1/3) * df['E_MassH'].iloc[rand] / df['MassH'].iloc[rand]
         
-                    # Run tests
-                    mask = create_transit_mask_manual(inj['time'], period, t0, duration)
+        try:
+            print(f"Trying TIC ID {tic_id} with mass {massH:.3f} M_sun, radius {r_s/6.957e+8:.3f} R_sun")
+            lc = preprocess(tic_id, TICID=True)
+            return tic_id, lc, massH, m_s, r_s, e_r_s
+        except Exception as e:
+            print(f"Failed to preprocess TIC ID {tic_id} due to {e}, retrying...")
+        return None
 
-                    depth = test_depth(inj['time'], inj['flux'], mask)
-                    vshape = test_v_shape(inj['time'], inj['flux'], mask)
-                    snr = test_snr(inj['flux'], mask)
-                    oot_variability = test_out_of_transit_variability(inj['flux'], mask)
+def fit_fold_and_test(lc, folder, output_file, Injected=False):
+    print(f"Fitting and testing light curve for {'injected' if Injected else 'non-injected'} data...")
+    results = BLSfit(lc)
+    print(f"Results: {results}")
+    high_periods, high_powers, best_period, t0, duration = BLSResults(results, plot='save', folder=folder, ID=ID)
+    plt.close('all')
 
-                    rows.append([ID, tic_id, r_s, e_r_s, r_p, a, real_period, inc, period, duration, depth, vshape, snr, oot_variability])
+    rows = []
+    for period in high_periods:
+        folded_lc = FoldedLC(lc, period, t0, ID=ID, plot='', folder=folder, bin=True, time_bin_size=0.001, output=True)
+        transit_mask = np.abs(folded_lc['time'].value) < 0.6 * duration.value
 
-                if rows:
-                    with open(output_file, 'a', newline='') as f:
-                        csv.writer(f).writerows(rows)
+        plt.scatter(folded_lc['time'].value, folded_lc['flux'].value, s=1, c='k', label='Folded LC')
+        plt.scatter(folded_lc[transit_mask]['time'].value, folded_lc[transit_mask]['flux'].value, s=1, c='r', label='Transit')
 
-                if j % 5 == 0:
-                    tqdm.write(f"{ID} saved ({len(rows)} cand.)")
+        oot_variability = test_out_of_transit_variability(folded_lc['flux'], transit_mask)
+        transit_mask_sig = transit_mask & (folded_lc['flux'].value < (1 - 3*oot_variability))
+        plt.scatter(folded_lc[transit_mask_sig]['time'].value, folded_lc[transit_mask_sig]['flux'].value, s=5, c='orange', label='>3 Sigma Points')
 
-            except Exception as e:
-                tqdm.write(f"Error processing ID {ID}: {e}")
-            finally:
-                out_ids.add(id_int)
-                plt.close('all')
-                gc.collect()
+        plt.axhline(1 - oot_variability, color='b', linestyle='--', label='1 Sigma OOT Variability')
+        plt.axhline(1 - 2*oot_variability, color='b', linestyle='--', label='2 Sigma OOT Variability')
+        plt.axhline(1 - 3*oot_variability, color='b', linestyle='--', label='3 Sigma OOT Variability')
+        plt.xlabel('Phase [JD]')
+        plt.ylabel('Normalized Flux')
+        plt.legend()
+        plt.title(f'ID {ID} Folded Light Curve at Period = {round(period,3)} days')
+        plt.savefig(f'../../../Research/{folder}/ID_{ID}_Folded_LC_Period_{round(period,3)}.png')
+        plt.close('all')
+
+        # Run tests
+        try: median, mean, max_depth = test_depth(folded_lc['time'],
+            folded_lc['flux'],
+            transit_mask_sig)
+        except: median, mean, max_depth = np.nan, np.nan, np.nan
+        try: vshape = test_v_shape(folded_lc['time'],
+                            folded_lc['flux'],
+                            transit_mask
+                            )
+        except: vshape = np.nan
+        try: snr = test_snr(folded_lc['flux'], transit_mask_sig)
+        except: snr = np.nan
+
+        rows.append([ID, tic_id, r_s, e_r_s, r_p, a, P_days, inc, 
+                        period, duration, vshape, 
+                        median, mean, max_depth, 
+                        oot_variability, snr])
+
+    if rows:
+        with open(output_file, 'a', newline='') as f:
+            csv.writer(f).writerows(rows)
+
+while True:
+    star_info = find_light_curve()
+    if star_info is None:
+        tqdm.write("Could not get a valid light curve after retries; continuing to next sample.")
+        continue
+    tic_id, lc, massH, m_s, r_s, e_r_s = star_info
+    tqdm.write(f"Using TIC {tic_id}: r_s={r_s/6.957e+8:.3f} R_sun")
+
+    r_p = float(sample_power_law(0.5, 5, 1.5)) # Earth Radii
+    rho = 1186*r_p**0.4483 if r_p < 2.5 else 2296*r_p**-1.413
+    
+    roche = np.cbrt((3/2) * np.pi * m_s / rho)
+    a_min = 0.5 * roche
+    a_max = 10.5 * roche
+
+    a = None
+    P_days = None
+    for _ in range(10):
+        a_try = np.random.uniform(a_min, a_max)
+        P_try = np.sqrt((4*np.pi**2 * a_try**3) / (G * m_s)) / (24*3600)
+        if P_try <= 15: # Filter max of 15 days
+            a = a_try
+            P_days = P_try
+            break
+    if a is None:
+        tqdm.write("Could not find an 'a' with P<=15 d within 10 tries; skipping this star.")
+        continue
+
+    # x = np.clip((0.01 + r_p)/a, -1.0, 1.0)
+    # inc_min = np.degrees(np.arccos(x))
+    # inc = 90 - (k * (90 - inc_min) / res)           # Inclination from 90 to i_min degrees
+    inc = 90
+
+    # print(f"radius of white dwarf: {r_s / 6.957e+8}")
+
+    id_int = next_id
+    ID = f"{id_int:06d}"
+    next_id += 1
+    out_ids.add(id_int)
+
+    # Inject transit
+    try:
+        inj = inject_transit(tic_id, lc, lc['time'].value,
+                    radius_star = r_s / 6.957e+8,   # radius of white dwarf in Solar radii
+                    mass_star = massH,              # mass of white dwarf in Solar masses
+                    radius_planet = r_p * 0.01,     # radius of planet in Solar radii
+                    albedo_planet=0.1, 
+                    period=P_days,
+                    inclination=inc,
+                    ID=ID,
+                    a=a / (r_s / 6.957e+8) # Semi-major axis in Solar radii
+        )
+        plt.close('all')
+
+        print()
+        fit_fold_and_test(lc, folder='WD_Plots10/Noninjected', output_file=noninj_output_file, Injected=False)
+        fit_fold_and_test(inj, folder='WD_Plots10/Injected', output_file=inj_output_file, Injected=True)
+
+    except Exception as e:
+        tqdm.write(f"Error processing ID {ID}: {e}")
+    finally:
+        plt.close('all')
+        gc.collect()
