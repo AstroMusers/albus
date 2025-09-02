@@ -64,8 +64,8 @@ def generate_lightcurve(
 
     # Calculate the transit duration
     b = (a*np.cos(np.radians(inclination)))/radius_star
-    # tduration = (period/np.pi)*np.arcsin((radius_star+radius_planet)/a + np.sqrt(1 - b**2))
-    tduration = 0
+    tduration = (period/np.pi)*np.arcsin((radius_star+radius_planet)/a + np.sqrt(1 - b**2))
+    # tduration = 0
 
     # tess_time = np.arange(0, time[-1], 120/(24*3600))
     # tess_flux = np.interp(tess_time, time, flux)
@@ -106,9 +106,9 @@ def inject_transit(
         plt.title(f"ID {ID} with TIC {tic_id} Light Curve")
         plt.savefig(f'/Users/aavikwadivkar/Documents/Exoplanets/Research/{folder}/{ID}_injectedlc.png')
         plt.close()
-    
-    
-    return inj
+
+
+    return inj, tduration
 
 def inject_transit_df(df, radius_star, mass_star, radius_planet, luminosity_star, albedo_planet, period, inclination, time_array):
     ttime, tflux, tduration = generate_lightcurve(

@@ -3,10 +3,10 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from mpl_toolkits.mplot3d import Axes3D
 
-df1 = pd.read_csv('Pipeline/injected_transits.csv', header=0)
-df2 = pd.read_csv('Pipeline/no_injections.csv', header=0)
+df1 = pd.read_csv('data_outputs/injected_transits.csv', header=0)
+df2 = pd.read_csv('data_outputs/noninjected_transits_output1.csv', header=0)
 
-dt = pd.read_csv('Pipeline/harmonics.csv', header=0)
+dt = pd.read_csv('data_outputs/harmonics.csv', header=0)
 
 count = 0
 

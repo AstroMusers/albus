@@ -31,7 +31,7 @@ def BLSfit(flatlc):
     # return results
     return pg
 
-def BLSResults(results, folder='', ID='', plot='save'):
+def BLSResults(results, folder='', ID='', plot=''):
 
     # Find the period with the highest power
     index = np.argmax(results.power)
@@ -59,97 +59,100 @@ def BLSResults(results, folder='', ID='', plot='save'):
     sorted_powers = powers[sorted_indices]
     sorted_periods = periods[sorted_indices]
 
-    for speriod, spower in zip(sorted_periods[1:], sorted_powers[1:]):
-        add_to_high = True
-        for hperiod in high_periods:
-            if lower_bound * hperiod <= speriod <= upper_bound * hperiod:
-                add_to_high = False
+    if plot!='':
+        for speriod, spower in zip(sorted_periods[1:], sorted_powers[1:]):
+            add_to_high = True
+            for hperiod in high_periods:
+                if lower_bound * hperiod <= speriod <= upper_bound * hperiod:
+                    add_to_high = False
+                    break
+            if add_to_high:
+                high_periods.append(speriod)
+                high_powers.append(spower)
+            if len(high_periods) >= 4:  # Stop after 4 clusters
                 break
-        if add_to_high:
-            high_periods.append(speriod)
-            high_powers.append(spower)
-        if len(high_periods) >= 4:  # Stop after 4 clusters
-            break
-    # Plot the BLS periodogram
-    num_bins = 48
-    bins = np.logspace(np.log10(1), np.log10(10), num_bins + 1)
+        # Plot the BLS periodogram
+        num_bins = 48
+        bins = np.logspace(np.log10(1), np.log10(10), num_bins + 1)
 
-    # Calculate the mean and standard deviation for each bin
-    bin_centers = []
-    bin_means = []
-    bin_stds = []
+        # Calculate the mean and standard deviation for each bin
+        bin_centers = []
+        bin_means = []
+        bin_stds = []
 
-    for i in range(num_bins):
-        # Mask for the current bin
-        bin_mask = (periods >= bins[i]) & (periods < bins[i + 1])
-        
-        # Extract values within the current bin
-        bin_periods = periods[bin_mask]
-        bin_powers = powers[bin_mask]
-        
-        # Calculate the 1.5 IQR range for outlier filtering
-        q1, q3 = np.percentile(bin_powers, [25, 75])
-        iqr = q3 - q1
-        lower_bound = q1 - 1.5 * iqr
-        upper_bound = q3 + 1.5 * iqr
-        
-        # Filter out outliers
-        filtered_powers = bin_powers[(bin_powers >= lower_bound) & (bin_powers <= upper_bound)]
-        
-        # Calculate the bin center, mean, and standard deviation without outliers
-        bin_centers.append(np.median(bin_periods))  # Center of each bin
-        bin_means.append(np.median(filtered_powers))  # Mean of y-values in each bin
-        bin_stds.append(np.std(filtered_powers))  # Std deviation of y-values in each bin
+        for i in range(num_bins):
+            # Mask for the current bin
+            bin_mask = (periods >= bins[i]) & (periods < bins[i + 1])
+            
+            # Extract values within the current bin
+            bin_periods = periods[bin_mask]
+            bin_powers = powers[bin_mask]
+            
+            # Calculate the 1.5 IQR range for outlier filtering
+            q1, q3 = np.percentile(bin_powers, [25, 75])
+            iqr = q3 - q1
+            lower_bound = q1 - 1.5 * iqr
+            upper_bound = q3 + 1.5 * iqr
+            
+            # Filter out outliers
+            filtered_powers = bin_powers[(bin_powers >= lower_bound) & (bin_powers <= upper_bound)]
+            
+            # Calculate the bin center, mean, and standard deviation without outliers
+            bin_centers.append(np.median(bin_periods))  # Center of each bin
+            bin_means.append(np.median(filtered_powers))  # Mean of y-values in each bin
+            bin_stds.append(np.std(filtered_powers))  # Std deviation of y-values in each bin
 
-    bin_centers = np.array(bin_centers)
-    bin_means = np.array(bin_means)
-    bin_stds = np.array(bin_stds)
+        bin_centers = np.array(bin_centers)
+        bin_means = np.array(bin_means)
+        bin_stds = np.array(bin_stds)
 
-    plt.semilogx(periods, powers, label=f'Periodogram of {ID}')
-    plt.semilogx(bin_centers, bin_means, 'r-', label='Median')
+        plt.semilogx(periods, powers, label=f'Periodogram of {ID}')
+        plt.semilogx(bin_centers, bin_means, 'r-', label='Median')
 
-    for n in range(5):
-        if best_period.value/(n+1) > 1:
-            plt.axvline(best_period.value/(n+1), ls=':', color='r', alpha=0.5)
-        if best_period.value*(n+1) < 10:
-            plt.axvline(best_period.value*(n+1), ls=':', color='r', alpha=0.5)
+        for n in range(5):
+            if best_period.value/(n+1) > 1:
+                plt.axvline(best_period.value/(n+1), ls=':', color='r', alpha=0.5)
+            if best_period.value*(n+1) < 10:
+                plt.axvline(best_period.value*(n+1), ls=':', color='r', alpha=0.5)
 
-    plt.fill_between(bin_centers, bin_means - 1*bin_stds, bin_means + 1*bin_stds, color='gray', alpha=0.3, label='1σ Band')
-    plt.fill_between(bin_centers, bin_means - 2*bin_stds, bin_means + 2*bin_stds, color='gray', alpha=0.3, label='2σ Band')
-    plt.fill_between(bin_centers, bin_means - 3*bin_stds, bin_means + 3*bin_stds, color='gray', alpha=0.3, label='3σ Band')
+        plt.fill_between(bin_centers, bin_means - 1*bin_stds, bin_means + 1*bin_stds, color='gray', alpha=0.3, label='1σ Band')
+        plt.fill_between(bin_centers, bin_means - 2*bin_stds, bin_means + 2*bin_stds, color='gray', alpha=0.3, label='2σ Band')
+        plt.fill_between(bin_centers, bin_means - 3*bin_stds, bin_means + 3*bin_stds, color='gray', alpha=0.3, label='3σ Band')
 
-    # Labels and legend
-    plt.xlabel('Period')
-    plt.ylabel('Power')
-    plt.legend()
-    plt.title(f'BLS Periodogram for {ID}')
-    if plot=='save': plt.savefig(f'../../../Research/{folder}/{ID}_blsplot.png')
-    if plot=='show': plt.show()
-    plt.close('all')
+        # Labels and legend
+        plt.xlabel('Period')
+        plt.ylabel('Power')
+        plt.legend()
+        plt.title(f'BLS Periodogram for {ID}')
+        if plot=='save': plt.savefig(f'../../../Research/{folder}/{ID}_blsplot.png')
+        if plot=='show': plt.show()
+        plt.close('all')
 
     return high_periods, high_powers, best_period, t0, duration
     
 
-def FoldedLC(flatlc, best_period, t0, plot='save', ID='', folder='', bin = False):
+def FoldedLC(flatlc, best_period, t0, plot='', ID='', folder='', bin = False, time_bin_size = 0.001, output = False):
 
     folded_lc = flatlc.fold(period=best_period, epoch_time = t0)
     try: period = best_period.value
     except: period = best_period
     print(f"Folded period: {period}")
-    # Plot the folded light curve
-    folded_lc.scatter()
-    plt.xlabel('Phase [JD]')
-    plt.ylabel('Normalized Flux')
-    rounded_period = str(round(period, 3))
-    plt.title(f'ID {ID} Folded Light Curve at Period = {rounded_period} days')
-    
     if bin:
-        binned_lc = folded_lc.bin(time_bin_size=0.001)
-        binned_lc.plot(label='Binned Data', color='red')
-
-    if plot=='save': plt.savefig(f'/Users/aavikwadivkar/Documents/Exoplanets/Research/{folder}/{ID}_{rounded_period}_foldedlc.png')
-    if plot=='show': plt.show()
+        # binned_lc = folded_lc.bin(bins=bins)
+        binned_lc = folded_lc.bin(time_bin_size=time_bin_size)
+        return binned_lc
+    if plot!='': # Plot the folded light curve
+        if bin: binned_lc.plot(label='Binned Data', color='red') 
+        else:
+            folded_lc.scatter()
+            plt.xlabel('Phase [JD]')
+            plt.ylabel('Normalized Flux')
+            rounded_period = str(round(period, 3))
+            plt.title(f'ID {ID} Folded Light Curve at Period = {rounded_period} days')
+            if plot=='save': plt.savefig(f'/Users/aavikwadivkar/Documents/Exoplanets/Research/{folder}/{ID}_{rounded_period}_foldedlc.png')
+            if plot=='show': plt.show()
     plt.close('all')
+    if output: return folded_lc
     return
 
 def BLSOutput(ID, tic_id, high_periods, high_powers, output_file):

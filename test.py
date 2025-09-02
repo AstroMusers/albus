@@ -11,37 +11,16 @@ from BLSFit import BLSfit, BLSResults, FoldedLC, BLSTestOutputs
 from BLStests import test_period, test_duration, test_depth, test_v_shape, test_snr, test_out_of_transit_variability, create_transit_mask_manual
 from injections import calc_a
 
-df = pd.read_csv('tess_targets_data.csv')
+# Load the CSV file into a DataFrame
+df = pd.read_csv('data_outputs/injected_transits_output3.csv')
 
-lc = None  # Reset lc to None at the start of the iteration
+# Calculate the ratio between 'real_period' and 'period'
+df['period_ratio'] = df[' real_period'] / df[' period']
 
-res = 9
-
-rads = []
-periods = []
-incs = []
-
-for i in range(res):
-    for j in range(res):
-        for k in (range(res)):
-            ID = str(i) + str(j) + str(k)
-            # print(ID)
-            
-            r_p = ((i+1)/res)**2                        # Range of planet radii from 0.01 to 1
-            period = 1+(10/res)*j                       # Range of periods from 1 to 10 days
-            a = calc_a(0.6, period)/(6.957*10**8)        # Semi-major axis in meters
-            inc_min = np.arccos((0.01+r_p)/a)/np.pi*180   # Minimum transit inclination in degrees
-            inc = 90-(k*(90-inc_min)/res)                   # Inclination from 90 to i_min degrees
-            # print(f"Radius: {r_p}, Period: {period}, Inclination: {inc}")
-            rads.append(r_p)
-            periods.append(period)
-            incs.append(inc)
-
-plt.hist(rads, bins=20, alpha=0.5, label='Radius')
-plt.hist(periods, bins=20, alpha=0.5, label='Period')
-plt.hist(incs, bins=20, alpha=0.5, label='Inclination')
-plt.xlabel('Value')
+# Plot the histogram
+plt.hist(df['period_ratio'], bins=50, color='blue', alpha=0.7, log=True)
+plt.xlabel('Ratio (real_period / period)')
 plt.ylabel('Frequency')
-plt.title('Distribution of Parameters')
-plt.legend()
+plt.title('Histogram of Period Ratios')
+plt.grid(True)
 plt.show()
