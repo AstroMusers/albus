@@ -5,10 +5,10 @@ import matplotlib.pyplot as plt
 from scipy.ndimage import gaussian_filter
 
 # --------------------- User-tweakable parameters ---------------------
-input_csv = 'data_outputs/injected_transits_output3.csv'
+input_csv = 'data_outputs/injected_transits_output4.csv'
 n_bins_1d = 20           # number of bins for 1D binned averages
 n_bins_2d = 20           # grid resolution for 2D heatmaps (per axis)
-sigma = 1.0              # gaussian blur sigma for heatmaps (set 0 to disable smoothing)
+sigma = 0.0              # gaussian blur sigma for heatmaps (set 0 to disable smoothing)
 count_threshold = 0      # minimum counts per 2D bin to consider valid (for masking)
 # --------------------------------------------------------------------
 
@@ -22,7 +22,7 @@ else:
 # Normalize column names (strip whitespace)
 df = df.rename(columns=lambda c: c.strip())
 
-required_cols = ['r_s', 'r_p', 'real_period', 'inc', 'snr']
+required_cols = ['r_s', 'r_p', 'P_days', 'inc', 'snr']
 missing = [c for c in required_cols if c not in df.columns]
 if missing:
     raise ValueError(f"Missing required columns in the CSV: {missing}")
@@ -30,14 +30,14 @@ if missing:
 # Clean snr and drop invalid rows
 df['snr'] = pd.to_numeric(df['snr'], errors='coerce')
 before = len(df)
-df = df.dropna(subset=['snr', 'r_s', 'r_p', 'real_period', 'inc'])
+df = df.dropna(subset=['snr', 'r_s', 'r_p', 'P_days', 'inc'])
 after = len(df)
 print(f"Dropped {before-after} rows with invalid/missing snr or parameters. Remaining rows: {after}")
 
 # extract
 radius = df['r_p'].values
 radius_star = df['r_s'].values
-period = df['real_period'].values
+period = df['P_days'].values
 inc = df['inc'].values
 snr = df['snr'].values
 radius_ratio = radius / radius_star
