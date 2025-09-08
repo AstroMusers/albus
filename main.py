@@ -11,8 +11,8 @@ from BLStests import test_depth, test_v_shape, test_snr, test_out_of_transit_var
 import gc
 
 df = pd.read_csv('data_inputs/tess_targets_data.csv')
-inj_output_file = 'data_outputs/injected_transits_output4.csv'
-noninj_output_file = 'data_outputs/noninjected_transits_output4.csv'
+inj_output_file = 'data_outputs/injected_transits_output5.csv'
+noninj_output_file = 'data_outputs/noninjected_transits_output5.csv'
 
 try:
     out = pd.read_csv(inj_output_file)
@@ -84,7 +84,7 @@ def fit_fold_and_test(lc, folder, output_file, Injected=False):
         plt.ylabel('Normalized Flux')
         plt.legend()
         plt.title(f'ID {ID} Folded Light Curve at Period = {round(period,3)} days')
-        plt.savefig(f'../../../Research/{folder}/ID_{ID}_Folded_LC_Period_{round(period,3)}.png')
+        plt.savefig(f'{folder}/ID_{ID}_Folded_LC_Period_{round(period,3)}.png')
         plt.close('all')
 
         # Run tests
@@ -163,8 +163,8 @@ while True:
         )
         plt.close('all')
 
-        fit_fold_and_test(lc, folder='WD_Plots10/Noninjected', output_file=noninj_output_file, Injected=False)
-        fit_fold_and_test(inj, folder='WD_Plots10/Injected', output_file=inj_output_file, Injected=True)
+        fit_fold_and_test(lc, folder='../../WD_Plots/Noninjected', output_file=noninj_output_file, Injected=False)
+        fit_fold_and_test(inj, folder='../../WD_Plots/Injected', output_file=inj_output_file, Injected=True)
 
     except Exception as e:
         tqdm.write(f"Error processing ID {ID}: {e}")

@@ -10,7 +10,7 @@ from injections import inject_transit
 from BLSFit import BLSfit, BLSResults, FoldedLC, BLSTestOutputs
 from BLStests import test_period, test_duration, test_depth, test_v_shape, test_snr, test_out_of_transit_variability, transit_depth_quantile_phase
 
-df = pd.read_csv('tess_targets_data.csv')
+df = pd.read_csv('data_inputs/tess_targets_data.csv')
 # output_file = 'Pipeline/injected_transits_datapoints.csv'
 
 # out = pd.read_csv('Pipeline/injected_transits_datapoints.csv')
@@ -20,8 +20,8 @@ lc = None
 
 # Find random WD lightcurve
 while lc is None:
-    # rand = random.randint(1, 1290)
-    rand = 602
+    rand = random.randint(1, 1290)
+    # rand = 602
     # print(rand)
     tic_id = int(df['Target ID'][rand])
     # tic_id = 199574211

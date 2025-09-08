@@ -124,7 +124,7 @@ def BLSResults(results, folder='', ID='', plot=''):
         plt.ylabel('Power')
         plt.legend()
         plt.title(f'BLS Periodogram for {ID}')
-        if plot=='save': plt.savefig(f'../../../Research/{folder}/{ID}_blsplot.png')
+        if plot=='save': plt.savefig(f'{folder}/{ID}_blsplot.png')
         if plot=='show': plt.show()
         plt.close('all')
 
@@ -149,7 +149,7 @@ def FoldedLC(flatlc, best_period, t0, plot='', ID='', folder='', bin = False, ti
             plt.ylabel('Normalized Flux')
             rounded_period = str(round(period, 3))
             plt.title(f'ID {ID} Folded Light Curve at Period = {rounded_period} days')
-            if plot=='save': plt.savefig(f'/Users/aavikwadivkar/Documents/Exoplanets/Research/{folder}/{ID}_{rounded_period}_foldedlc.png')
+            if plot=='save': plt.savefig(f'{folder}/{ID}_{rounded_period}_foldedlc.png')
             if plot=='show': plt.show()
     plt.close('all')
     if output: return folded_lc
