@@ -27,7 +27,7 @@ def BLSfit(flatlc):
         return f"Error in BLS fit: {e}"
     # results = pg.flatten()
 
-    print("bls")
+    # print("bls")
     # return results
     return pg
 
@@ -136,21 +136,20 @@ def FoldedLC(flatlc, best_period, t0, plot='', ID='', folder='', bin = False, ti
     folded_lc = flatlc.fold(period=best_period, epoch_time = t0)
     try: period = best_period.value
     except: period = best_period
-    print(f"Folded period: {period}")
+    # print(f"Folded period: {period}")
     if bin:
         # binned_lc = folded_lc.bin(bins=bins)
         binned_lc = folded_lc.bin(time_bin_size=time_bin_size)
         return binned_lc
     if plot!='': # Plot the folded light curve
         if bin: binned_lc.plot(label='Binned Data', color='red') 
-        else:
-            folded_lc.scatter()
-            plt.xlabel('Phase [JD]')
-            plt.ylabel('Normalized Flux')
-            rounded_period = str(round(period, 3))
-            plt.title(f'ID {ID} Folded Light Curve at Period = {rounded_period} days')
-            if plot=='save': plt.savefig(f'{folder}/{ID}_{rounded_period}_foldedlc.png')
-            if plot=='show': plt.show()
+        else: folded_lc.scatter()
+        plt.xlabel('Phase [JD]')
+        plt.ylabel('Normalized Flux')
+        rounded_period = str(round(period, 3))
+        plt.title(f'ID {ID} Folded Light Curve at Period = {rounded_period} days')
+        if plot=='save': plt.savefig(f'{folder}/{ID}_{rounded_period}_foldedlc.png')
+        if plot=='show': plt.show()
     plt.close('all')
     if output: return folded_lc
     return

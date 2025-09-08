@@ -31,7 +31,7 @@ def generate_lightcurve(
 
     if a is None:
         a = calc_a(mass_star, period)
-        print(f"Calculated semi-major axis (a): {a} m")
+        # print(f"Calculated semi-major axis (a): {a} m")
 
     # print(f"Calculated semi-major axis (a): {a} m")
 
@@ -64,9 +64,12 @@ def generate_lightcurve(
     flux = flux/np.median(flux)
 
     # Calculate the transit duration
-    b = (a*np.cos(np.radians(inclination)))/radius_star
-    tduration = (period/np.pi)*np.arcsin((radius_star+radius_planet)/a + np.sqrt(1 - b**2))
-    # tduration = 0
+    # b = (a*np.cos(np.radians(inclination)))/star_radius_m
+    # if b >= 1 + planet_radius_m/star_radius_m:
+    #     tduration = 0
+    # else:   
+    #     tduration = (period/np.pi)*np.arcsin((star_radius_m+planet_radius_m)/a + np.sqrt(1 - b**2))
+    tduration = 0
 
     # tess_time = np.arange(0, time[-1], 120/(24*3600))
     # tess_flux = np.interp(tess_time, time, flux)
@@ -105,7 +108,7 @@ def inject_transit(
         plt.xlabel("Time (days)")
         plt.ylabel("Relative Flux")
         plt.title(f"ID {ID} with TIC {tic_id} Light Curve")
-        plt.savefig(f'/Users/aavikwadivkar/Documents/Exoplanets/Research/{folder}/{ID}_injectedlc.png')
+        plt.savefig(f'{folder}/{ID}_injectedlc.png')
         plt.close()
 
 

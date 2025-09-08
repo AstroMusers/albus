@@ -6,13 +6,13 @@ def preprocess(input, TICID = True, injection = False):
 # Download the TESS light curve for a specific TIC ID
     if TICID: search_result = lk.search_lightcurve(f"TIC {input}", mission='TESS')
     else: search_result = lk.search_lightcurve(input, mission='TESS')
-    print("search has resulted")
+    # print("search has resulted")
 
     try: lcc = search_result.download_all()
     except:
         print('download failed')
         return
-    print("downloaded")
+    # print("downloaded")
 
     if lcc is None:
         print('download empty')

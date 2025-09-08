@@ -51,14 +51,14 @@ print(f"r_s: {r_s/6.957e+8} solar radii, e_r_s: {e_r_s/6.957e+8}, r_p: {r_p} r_e
 
 inj = lc
 # Inject transit
-# inj = inject_transit(tic_id, lc, lc['time'].value,
-#                 radius_star = r_s / 6.957e+8, 
-#                 mass_star = df['MassH'][rand], 
-#                 radius_planet = r_p * 0.01, 
-#                 albedo_planet=0.1, 
-#                 period=period,
-#                 inclination=inc
-#                 )
+inj = inject_transit(tic_id, lc, lc['time'].value,
+                radius_star = r_s / 6.957e+8, 
+                mass_star = df['MassH'][rand], 
+                radius_planet = r_p * 0.01, 
+                albedo_planet=0.1, 
+                period=period,
+                inclination=inc
+                )
 
 # print(f"Injected light curve: {inj['flux'].value[:10]}...")  # Print first 10 flux values for verification
 
