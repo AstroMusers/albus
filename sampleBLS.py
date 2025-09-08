@@ -21,9 +21,11 @@ lc = None
 # Find random WD lightcurve
 while lc is None:
     # rand = random.randint(1, 1290)
-    rand = 100
-    print(rand)
+    rand = 602
+    # print(rand)
     tic_id = int(df['Target ID'][rand])
+    # tic_id = 199574211
+    print(tic_id)
     try: lc = preprocess(tic_id, TICID=True)
     except: pass
 
@@ -49,14 +51,14 @@ print(f"r_s: {r_s/6.957e+8} solar radii, e_r_s: {e_r_s/6.957e+8}, r_p: {r_p} r_e
 
 inj = lc
 # Inject transit
-inj = inject_transit(tic_id, lc, lc['time'].value,
-                radius_star = r_s / 6.957e+8, 
-                mass_star = df['MassH'][rand], 
-                radius_planet = r_p * 0.01, 
-                albedo_planet=0.1, 
-                period=period,
-                inclination=inc
-                )
+# inj = inject_transit(tic_id, lc, lc['time'].value,
+#                 radius_star = r_s / 6.957e+8, 
+#                 mass_star = df['MassH'][rand], 
+#                 radius_planet = r_p * 0.01, 
+#                 albedo_planet=0.1, 
+#                 period=period,
+#                 inclination=inc
+#                 )
 
 # print(f"Injected light curve: {inj['flux'].value[:10]}...")  # Print first 10 flux values for verification
 
@@ -143,7 +145,7 @@ plt.axhline(1 - 3*oot_variability, color='b', linestyle='--', label='3 Sigma OOT
 # plt.axhline(res['floor'], color='g', linestyle=':', lw=2, 
 #             label=f'Estimated floor (depth={res["depth"]:.4f})')
 # plt.axvline(res['floor_phase'], color='g', linestyle=':', lw=1)
-
+plt.title(f'Folded Light Curve for TIC {tic_id} at {best_period:.2f} days')
 plt.xlabel('Phase [JD]')
 plt.ylabel('Normalized Flux')
 plt.legend()
@@ -161,7 +163,7 @@ try: snr = test_snr(folded_lc['flux'], transit_mask_sig)
 except: snr = np.nan
 
 print(f"Actual Period: {period}, Best Period: {best_period}, V-Shape: {vshape}, "
-      f"Median Depth: {median}, Mean Depth: {mean}, Max Depth: {max_depth}, "
+      f"Median Depth: {median}, Mean Depth: {mean}, Max Depth: {max_depth}"
       f"OOT Variability: {oot_variability}, SNR: {snr}")
 
 print('done!')

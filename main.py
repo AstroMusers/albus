@@ -5,12 +5,12 @@ import csv
 from tqdm import tqdm
 from matplotlib import pyplot as plt
 from preprocess import preprocess
-from injections import inject_transit, calc_a
-from BLSFit import BLSfit, BLSResults, FoldedLC, BLSTestOutputs
-from BLStests import test_depth, test_v_shape, test_snr, test_out_of_transit_variability, create_transit_mask_manual
+from injections import inject_transit
+from BLSFit import BLSfit, BLSResults, FoldedLC
+from BLStests import test_depth, test_v_shape, test_snr, test_out_of_transit_variability
 import gc
 
-df = pd.read_csv('tess_targets_data.csv')
+df = pd.read_csv('data_inputs/tess_targets_data.csv')
 inj_output_file = 'data_outputs/injected_transits_output4.csv'
 noninj_output_file = 'data_outputs/noninjected_transits_output4.csv'
 
@@ -137,10 +137,10 @@ while True:
         tqdm.write("Could not find an 'a' with P<=15 d within 10 tries; skipping this star.")
         continue
 
-    # x = np.clip((0.01 + r_p)/a, -1.0, 1.0)
-    # inc_min = np.degrees(np.arccos(x))
+    x = np.clip((0.01 + r_p)/a, -1.0, 1.0)
+    inc_min = np.degrees(np.arccos(x))
     # inc = 90 - (k * (90 - inc_min) / res)           # Inclination from 90 to i_min degrees
-    inc = 90
+    inc = np.random.uniform(inc_min, 90)
 
     # print(f"radius of white dwarf: {r_s / 6.957e+8}")
 

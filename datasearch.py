@@ -1,6 +1,6 @@
 import csv
 
-file_path = 'data_outputs/injected_transits_output3.csv'
+file_path = 'data_outputs/noninjected_transits_output4.csv'
 with open(file_path, mode='r') as file:
     reader = csv.DictReader(file)
     max_snr_row = None
