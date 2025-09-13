@@ -2,12 +2,13 @@ import os
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib.colors as colors
 from scipy.ndimage import gaussian_filter
 
 # --------------------- User-tweakable parameters ---------------------
-input_csv = 'data_outputs/injected_transits_output4.csv'
-n_bins_1d = 20           # number of bins for 1D binned averages
-n_bins_2d = 20           # grid resolution for 2D heatmaps (per axis)
+input_csv = 'data_outputs/injected_transits_output6.csv'
+n_bins_1d = 10           # number of bins for 1D binned averages
+n_bins_2d = 10           # grid resolution for 2D heatmaps (per axis)
 sigma = 0.0              # gaussian blur sigma for heatmaps (set 0 to disable smoothing)
 count_threshold = 0      # minimum counts per 2D bin to consider valid (for masking)
 # --------------------------------------------------------------------
@@ -74,9 +75,10 @@ def compute_2d_grid(x, y, z, nx=20, ny=20):
     y_centers = 0.5*(y_edges[:-1] + y_edges[1:])
     return x_edges, y_edges, x_centers, y_centers, grid, counts
 
-n_bins_2d_rp = 20
-n_bins_2d_pi = 20
-n_bins_2d_ri = 20
+# n_bins_2d_rp = 20
+# n_bins_2d_pi = 20
+# n_bins_2d_ri = 20
+n_bins_2d_rp = n_bins_2d_pi = n_bins_2d_ri = n_bins_2d
 
 # prepare grids
 xp_edges, yp_edges, xp_centers, yp_centers, grid_rp, counts_rp = compute_2d_grid(radius_ratio, period, snr, nx=n_bins_2d_rp, ny=n_bins_2d_rp)
@@ -136,6 +138,7 @@ ax.scatter(inc, snr, s=8, alpha=0.25)
 centers, means, counts, _ = binned_summary(inc, snr, n_bins=n_bins_1d)
 ax.plot(centers, means, marker='o', color='C1', linewidth=1.5)
 ax.set_xlabel('Inclination (deg)')
+ax.set_xscale('log') 
 ax.set_yscale('log')
 ax.set_title('Inclination vs SNR (scatter + binned avg)')
 ax.grid(True, linestyle=':', linewidth=0.5)
@@ -143,33 +146,33 @@ ax.grid(True, linestyle=':', linewidth=0.5)
 # Bottom row: heatmaps (Radius vs Period, Period vs Inclination, Radius vs Inclination)
 # Heatmap 1: Radius vs Period (use xp_edges, yp_edges)
 ax = axes[1,0]
-mesh1 = ax.pcolormesh(xp_edges, yp_edges, sm_rp, shading='auto')
+mesh1 = ax.pcolormesh(xp_edges, yp_edges, sm_rp, shading='auto', norm=colors.LogNorm())
 ax.set_xlabel(r'Radius Ratio ($R_{\mathrm{J}} / R_{\mathrm{*}}$)')
 ax.set_ylabel('Period (days)')
 ax.set_title('Heatmap: Radius Ratio vs Period (avg SNR)')
 cbar1 = fig.colorbar(mesh1, ax=ax, fraction=0.046, pad=0.04)
-cbar1.set_label('Average SNR')
+cbar1.set_label('Average SNR (log scale)')
 
 # Heatmap 2: Period vs Inclination
 ax = axes[1,1]
-mesh2 = ax.pcolormesh(pp_edges, pi_edges, sm_pi, shading='auto')
+mesh2 = ax.pcolormesh(pp_edges, pi_edges, sm_pi, shading='auto', norm=colors.LogNorm())
 ax.set_xlabel('Period (days)')
 ax.set_ylabel('Inclination (deg)')
 ax.set_title('Heatmap: Period vs Inclination (avg SNR)')
 cbar2 = fig.colorbar(mesh2, ax=ax, fraction=0.046, pad=0.04)
-# cbar2.set_label('Average SNR')
+cbar2.set_label('Average SNR (log scale)')
 
-# Heatmap 3: Radius vs Inclination
+# Heatmap 3: Inclination vs Radius
 ax = axes[1,2]
-mesh3 = ax.pcolormesh(xr_edges, xi_edges, sm_ri, shading='auto')
-ax.set_xlabel(r'Radius Ratio ($R_{\mathrm{J}} / R_{\mathrm{*}}$)')
-ax.set_ylabel('Inclination (deg)')
-ax.set_title('Heatmap: Radius Ratio vs Inclination (avg SNR)')
+mesh3 = ax.pcolormesh(xi_edges, xr_edges, sm_ri.T, shading='auto', norm=colors.LogNorm())  # Transpose the grid for correct orientation
+ax.set_xlabel('Inclination (deg)')
+ax.set_ylabel(r'Radius Ratio ($R_{\mathrm{J}} / R_{\mathrm{*}}$)')
+ax.set_title('Heatmap: Inclination vs Radius Ratio (avg SNR)')
 cbar3 = fig.colorbar(mesh3, ax=ax, fraction=0.046, pad=0.04)
-# cbar3.set_label('Average SNR')
+cbar3.set_label('Average SNR (log scale)')
 
 plt.suptitle('SNR vs Parameters — 1D and 2D summaries', fontsize=16, y=0.98)
 plt.tight_layout(rect=[0,0,1,0.96])
-plt.show()
+plt.savefig('data_outputs/snr_vs_parameters_summary6.png', dpi=300)
 
 print('Done: single figure with 6 subplots generated. Adjust input_csv, n_bins_1d, n_bins_2d, sigma as needed.')

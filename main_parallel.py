@@ -4,8 +4,10 @@ os.environ["MPLBACKEND"] = "Agg"
 for var in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS",
             "NUMEXPR_NUM_THREADS", "VECLIB_MAXIMUM_THREADS"):
     os.environ.setdefault(var, "1")
+os.nice(19)
 
 import csv
+import re
 import gc
 import time
 import random
@@ -15,18 +17,20 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from matplotlib import pyplot as plt
 from tqdm import tqdm
 from multiprocessing import get_context
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures.process import BrokenProcessPool
 
 from preprocess import preprocess
 from injections import inject_transit
 from BLSFit import BLSfit, BLSResults, FoldedLC
 from BLStests import test_depth, test_v_shape, test_snr, test_out_of_transit_variability
 
-MAX_CORES = 8                        # hard cap
-N_SAMPLES = 400                      # how many samples to generate this run
+MAX_CORES = 32                        # hard cap
+N_SAMPLES = 999999                      # how many samples to generate this run
 TESS_CSV = 'data_inputs/tess_targets_data.csv'
 
-INJ_OUT = 'data_outputs/injected_transits_output5.csv'
-NONINJ_OUT = 'data_outputs/noninjected_transits_output5.csv'
+INJ_OUT = 'data_outputs/injected_transits_output6.csv'
+NONINJ_OUT = 'data_outputs/noninjected_transits_output6.csv'
 
 PLOT_DIR_INJ = '../../WD_Plots/Injected'
 PLOT_DIR_NON = '../../WD_Plots/Noninjected'
@@ -68,6 +72,47 @@ def _to_float(x):
 def log(id_, msg):
     # print(f"[{time.strftime('%H:%M:%S')}] [{id_}] {msg}", flush=True)
     return
+
+def load_existing_ids_from_csv(path):
+    ids = set()
+    if not os.path.exists(path) or os.path.getsize(path) == 0:
+        return ids
+    try:
+        df = pd.read_csv(path, usecols=['ID'])
+        ids = set(pd.to_numeric(df['ID'], errors='coerce').dropna().astype(int).tolist())
+    except Exception:
+        # file might be mid-write/corrupted; best-effort only
+        pass
+    return ids
+
+def load_existing_ids_from_plots(*dirs):
+    ids = set()
+    pat = re.compile(r"ID_(\d{6})_")
+    for d in dirs:
+        if not os.path.isdir(d):
+            continue
+        try:
+            for name in os.listdir(d):
+                m = pat.search(name)
+                if m:
+                    ids.add(int(m.group(1)))
+        except Exception:
+            pass
+    return ids
+
+def compute_resume_state():
+    # Read IDs that already exist per CSV
+    seen_non = load_existing_ids_from_csv(NONINJ_OUT)
+    seen_inj = load_existing_ids_from_csv(INJ_OUT)
+
+    # Also consider plot folders (per type) for resume safety
+    seen_non |= load_existing_ids_from_plots(PLOT_DIR_NON)
+    seen_inj |= load_existing_ids_from_plots(PLOT_DIR_INJ)
+
+    # Next ID should advance beyond anything seen in either set
+    union = seen_non | seen_inj
+    next_id = (max(union) + 1) if union else 0
+    return next_id, seen_non, seen_inj
 
 def sample_power_law(min_val, max_val, alpha):
     """
@@ -201,19 +246,29 @@ def worker(task):
     rho = 1186*r_p**0.4483 if r_p < 2.5 else 2296*r_p**-1.413  # kg/m^3
 
     roche = np.cbrt((3/2) * np.pi * m_s / rho)
-    a_min = 0.5 * roche
-    a_max = 10.5 * roche
+    a_min = _to_float(0.5 * roche)
+    a_max = _to_float(10.5 * roche)
+
+    # Bail out if bounds are invalid
+    if not (np.isfinite(a_min) and np.isfinite(a_max) and a_min > 0 and a_max > a_min):
+        return {'inj_rows': [], 'non_rows': [], 'error': f'Bad a-bounds: a_min={a_min}, a_max={a_max}, rho={rho}, m_s={m_s}'}
+
 
     a = None
     P_days = None
     for _ in range(10):
-        a_try = np.random.uniform(a_min, a_max)
-        P_try = np.sqrt((4*np.pi**2 * a_try**3) / (G * m_s)) / (24*3600)
-        if P_try <= 15:
+        try:
+            a_try = float(np.random.uniform(a_min, a_max))
+        except (OverflowError, ValueError):  # ultra-defensive
+            break  # will hit the 'a is None' path below
+
+        P_try = float(np.sqrt((4*np.pi**2 * a_try**3) / (G * m_s)) / (24*3600))
+        if np.isfinite(P_try) and P_try <= 15:
             a, P_days = a_try, P_try
             break
+
     if a is None:
-        return {'inj_rows': [], 'non_rows': []}
+        return {'inj_rows': [], 'non_rows': [], 'error': 'Could not find a with P<=15 d'}
 
     x = np.clip((0.01 + r_p)/a, -1.0, 1.0)
     inc_min = np.degrees(np.arccos(x))
@@ -277,7 +332,13 @@ def main():
         out_ids = set(pd.to_numeric(out['ID'], errors='coerce').dropna().astype(int))
     except FileNotFoundError:
         out_ids = set()
-    next_id = (max(out_ids) + 1) if out_ids else 0
+    next_id, seen_non, seen_inj = compute_resume_state()
+    print(
+        f"Writing to:\n  INJ: {os.path.abspath(INJ_OUT)}\n  NON: {os.path.abspath(NONINJ_OUT)}\n"
+        f"Starting next_id={next_id} (seen_non={len(seen_non)}, seen_inj={len(seen_inj)})",
+        flush=True
+    )
+    
 
     # Ensure headers exist
     ensure_csv_with_header(INJ_OUT, INJ_HEADER)
@@ -302,8 +363,8 @@ def main():
 
     # Fan-out/fan-in
     with ProcessPoolExecutor(max_workers=workers, mp_context=ctx) as ex, \
-        open(INJ_OUT, 'a', newline='') as inj_f, \
-        open(NONINJ_OUT, 'a', newline='') as non_f:
+        open(INJ_OUT, 'a', newline='', buffering=1) as inj_f, \
+        open(NONINJ_OUT, 'a', newline='', buffering=1) as non_f:
 
         inj_writer = csv.writer(inj_f)
         non_writer = csv.writer(non_f)
@@ -314,18 +375,50 @@ def main():
             res = fut.result()
             if res.get('error'):
                 print(res['error'], flush=True)
-            print(f"[done] noninj={len(res.get('non_rows', []))}, inj={len(res.get('inj_rows', []))}", flush=True)
 
-            if res['non_rows']:
-                non_writer.writerows(res['non_rows'])
-                non_f.flush()
+            # Filter out any rows whose ID we already have (idempotent append)
+            def new_non_rows(rows):
+                out = []
+                for row in rows:
+                    try:
+                        rid = int(row[0])  # ID in first column
+                    except Exception:
+                        continue
+                    if rid not in seen_non:
+                        out.append(row)
+                        seen_non.add(rid)
+                return out
 
-            if res['inj_rows']:
-                inj_writer.writerows(res['inj_rows'])
-                inj_f.flush()
+            def new_inj_rows(rows):
+                out = []
+                for row in rows:
+                    try:
+                        rid = int(row[0])
+                    except Exception:
+                        continue
+                    if rid not in seen_inj:
+                        out.append(row)
+                        seen_inj.add(rid)
+                return out
+
+            non_new = new_non_rows(res.get('non_rows', []))
+            inj_new  = new_inj_rows(res.get('inj_rows', []))
+
+            if non_new:
+                non_writer.writerows(non_new)
+                non_f.flush(); os.fsync(non_f.fileno())
+
+            if inj_new:
+                inj_writer.writerows(inj_new)
+                inj_f.flush(); os.fsync(inj_f.fileno())
+
+            print(f"[done] wrote noninj={len(non_new)}, inj={len(inj_new)} "
+                f"(seen_non={len(seen_non)}, seen_inj={len(seen_inj)})",
+                flush=True)
+
 
 if __name__ == "__main__":
-    if False:  # flip to True to test once
+    if False:  # flip to True to test
         df = pd.read_csv(TESS_CSV)
         res = worker({'ID': "SMOKET", 'seed': 123, 'df_path': TESS_CSV})
         print("SMOKE:", {k: len(v) if isinstance(v, list) else v for k, v in res.items()})
