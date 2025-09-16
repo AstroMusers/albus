@@ -8,18 +8,18 @@ from astroquery.mast import Catalogs, Tesscut
 from tqdm import tqdm
 import csv
 
-WDlist = fits.open('/Users/aavikwadivkar/Documents/Exoplanets/Research/gaiaedr3_wd_main.fits')
+WDlist = fits.open('~/gaiaedr3_wd_main.fits')
 data = WDlist[1].data
 
-df = pd.read_csv('tess_targets_data.csv', on_bad_lines='skip', header = 0)
+df = pd.read_csv('~/albus/albus/data_inputs/tess_targets_data.csv', on_bad_lines='skip', header = 0)
 
 # Magcut = data[(data['phot_g_mean_mag_corrected'] < 16)]
 # Probcut = Magcut[(Magcut['Pwd'] > 0.9)]
 # Flatcut = Probcut[(Probcut['bright_N_flag'] == 0)]
 
 Probcut = data[(data['Pwd'] > 0.9)]
-Magcut = Probcut[(Probcut['phot_g_mean_mag_corrected'] < 16)]
-Flatcut = Magcut[(Magcut['bright_N_flag'] == 0)]
+Magcut = data[(data['phot_g_mean_mag_corrected'] < 16)]
+Flatcut = data[(data['bright_N_flag'] == 0)]
 
 print(len(Probcut))
 print(len(Magcut))
@@ -43,21 +43,21 @@ vallims = [min(data['bp_rp']), max(data['bp_rp']),
 
 print(vallims)
 print(len(data))
-plot = np.histogram2d(data['bp_rp'], data['absG'], bins=200)[0]
-print(plot)
+# plot = np.histogram2d(data['bp_rp'], data['absG'], bins=200)[0]
+# print(plot)
 # plt.hist2d(data['bp_rp'], data['absG'], bins=100, cmap='plasma', norm =  'log')
 # plot = gaussian_filter(plot, sigma=3)
 # plot = [plot[0], plot[1]]
-plt.pcolormesh(plot, cmap='viridis', norm='log')
+# plt.pcolormesh(plot, cmap='viridis', norm='log')
 
-plt.colorbar()
+# plt.colorbar()
 # plt.hist2d(Probcut['bp_rp'], Probcut['absG'], bins=100, cmap='plasma', norm =  'log')
 # plt.colorbar()
 
-# plt.scatter(data['bp_rp'], data['absG'], alpha = 0.1, color = 'k', marker='.', label = 'GAIA EDR3 WD Candidates')
-# plt.scatter(Probcut['bp_rp'], Probcut['absG'], alpha = 0.3, color = 'r', marker='.', label = 'Probability Cut')
-# plt.scatter(Magcut['bp_rp'], Magcut['absG'], alpha = 0.3, color = 'b', marker='.', label = 'Apparent Magnitude Cut')
-# plt.scatter(df['BP-RP'], df['GMAG'], alpha=0.3, color = 'g', marker = '.', label = 'TESS Lightcurve Available')
+plt.scatter(data['bp_rp'], data['absG'], alpha = 0.1, color = 'k', marker='.', label = 'GAIA EDR3 WD Candidates')
+plt.scatter(Probcut['bp_rp'], Probcut['absG'], alpha = 0.3, color = 'r', marker='.', label = 'Probability Cut')
+plt.scatter(Magcut['bp_rp'], Magcut['absG'], alpha = 0.3, color = 'b', marker='.', label = 'Apparent Magnitude Cut')
+plt.scatter(df['BP-RP'], df['GMAG'], alpha=0.3, color = 'g', marker = '.', label = 'TESS Lightcurve Available')
 plt.xlabel('Bp - Rp')
 plt.ylabel('Absolute G-band Magnitude')
 # plt.gca().invert_yaxis()
@@ -66,7 +66,7 @@ plt.title('HR Diagram of White Dwarf Candidates')
 # plt.plot(Magcut['bp_rp'], Magcut['absG'], '.', label='Magcut', color='blue', alpha=0.01)
 # plt.plot(Probcut['bp_rp'], Probcut['absG'], '.', label='Probcut', color='red', alpha=0.01)
 plt.legend()
-plt.show()
+plt.savefig('HR Diagram WD Candidates.png', dpi=300)
 
 # Check in TESS data is available
 # valids = []
