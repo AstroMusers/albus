@@ -1,5 +1,4 @@
 import pandas as pd
-
 import matplotlib.pyplot as plt
 
 # File path
@@ -17,7 +16,7 @@ period = data['P_days']
 inclination = data['inc']
 
 # Create subplots for the histograms
-fig, axes = plt.subplots(1, 3, figsize=(12, 3), sharex=False)
+fig, axes = plt.subplots(1, 3, figsize=(12, 3), sharex=False, sharey=True)
 
 # Plot Radius Ratio histogram
 axes[0].hist(radius_ratio, bins=30, color='blue', alpha=0.7)
@@ -29,16 +28,22 @@ axes[0].set_ylabel('Frequency')
 axes[1].hist(period, bins=30, color='green', alpha=0.7)
 axes[1].set_title('Period')
 axes[1].set_xlabel('Period')
-axes[1].set_ylabel('Frequency')
 
 # Plot Inclination histogram
 axes[2].hist(inclination, bins=30, color='red', alpha=0.7)
 axes[2].set_title('Inclination')
 axes[2].set_xlabel('Inclination')
-axes[2].set_ylabel('Frequency')
+
+# Set y-axis to log scale for all subplots
+for ax in axes:
+    ax.set_yscale('log')
+
+plt.suptitle('Histograms of Radius Ratio, Period, and Inclination')
+
 
 # Adjust layout
 plt.tight_layout()
 
 # Show the plot
+plt.savefig('data_outputs/run6analysis/histograms_radius_period_inclination6.png', dpi=300)
 plt.show()

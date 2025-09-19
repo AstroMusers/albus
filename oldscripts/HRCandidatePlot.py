@@ -8,10 +8,13 @@ from astroquery.mast import Catalogs, Tesscut
 from tqdm import tqdm
 import csv
 
-WDlist = fits.open('~/gaiaedr3_wd_main.fits')
+# WDlist = fits.open('~/gaiaedr3_wd_main.fits')
+WDlist = fits.open('../../gaiaedr3_wd_main.fits')
 data = WDlist[1].data
 
-df = pd.read_csv('~/albus/albus/data_inputs/tess_targets_data.csv', on_bad_lines='skip', header = 0)
+# df = pd.read_csv('~/albus/albus/data_inputs/tess_targets_data.csv', on_bad_lines='skip', header = 0)
+df = pd.read_csv('data_inputs/tess_targets_data.csv', on_bad_lines='skip', header = 0)
+
 
 # Magcut = data[(data['phot_g_mean_mag_corrected'] < 16)]
 # Probcut = Magcut[(Magcut['Pwd'] > 0.9)]
@@ -54,19 +57,43 @@ print(len(data))
 # plt.hist2d(Probcut['bp_rp'], Probcut['absG'], bins=100, cmap='plasma', norm =  'log')
 # plt.colorbar()
 
-plt.scatter(data['bp_rp'], data['absG'], alpha = 0.1, color = 'k', marker='.', label = 'GAIA EDR3 WD Candidates')
+def scatterplot():
+    plt.scatter(data['bp_rp'], data['absG'], alpha = 0.1, color = 'k', marker='.', label = 'GAIA EDR3 WD Candidates')
+    plt.xlabel('Bp - Rp')
+    plt.ylabel('Absolute G-band Magnitude')
+    plt.gca().invert_yaxis()
+    # plt.gca().invert_xaxis()
+    plt.title('HR Diagram of White Dwarf Candidates')
+    # plt.legend()
+    # plt.savefig(f'HR Diagram WD Candidates {i}.png', dpi=300)
+
+scatterplot()
 plt.scatter(Probcut['bp_rp'], Probcut['absG'], alpha = 0.3, color = 'r', marker='.', label = 'Probability Cut')
-plt.scatter(Magcut['bp_rp'], Magcut['absG'], alpha = 0.3, color = 'b', marker='.', label = 'Apparent Magnitude Cut')
-plt.scatter(df['BP-RP'], df['GMAG'], alpha=0.3, color = 'g', marker = '.', label = 'TESS Lightcurve Available')
-plt.xlabel('Bp - Rp')
-plt.ylabel('Absolute G-band Magnitude')
-# plt.gca().invert_yaxis()
-plt.gca().invert_xaxis()
-plt.title('HR Diagram of White Dwarf Candidates')
-# plt.plot(Magcut['bp_rp'], Magcut['absG'], '.', label='Magcut', color='blue', alpha=0.01)
-# plt.plot(Probcut['bp_rp'], Probcut['absG'], '.', label='Probcut', color='red', alpha=0.01)
 plt.legend()
-plt.savefig('HR Diagram WD Candidates.png', dpi=300)
+plt.savefig(f'HR Diagram WD Candidates (Prob).png', dpi=300)
+plt.close()
+
+scatterplot()
+plt.scatter(Magcut['bp_rp'], Magcut['absG'], alpha = 0.3, color = 'b', marker='.', label = 'Apparent Magnitude Cut')
+plt.legend()
+plt.savefig(f'HR Diagram WD Candidates (Mag).png', dpi=300)
+plt.close()
+
+scatterplot()
+plt.scatter(df['BP-RP'], df['GMAG'], alpha=0.3, color = 'g', marker = '.', label = 'TESS Lightcurve Available')
+plt.legend()
+plt.savefig(f'HR Diagram WD Candidates (TESS).png', dpi=300)
+plt.close()
+
+
+scatterplot()
+plt.scatter(totalcut['bp_rp'], totalcut['absG'], alpha = 0.3, color = 'm', marker='.', label = 'All Cuts')
+plt.legend()
+plt.savefig(f'HR Diagram WD Candidates (All).png', dpi=300)
+plt.close()
+
+# plt.scatter(Magcut['bp_rp'], Magcut['absG'], alpha = 0.3, color = 'b', marker='.', label = 'Apparent Magnitude Cut')
+
 
 # Check in TESS data is available
 # valids = []

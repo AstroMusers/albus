@@ -2,7 +2,7 @@ import pandas as pd
 import corner
 import matplotlib.pyplot as plt
 
-df = pd.read_csv('Pipeline/injected_transits_datapoints.csv', header=1)
+df = pd.read_csv('data_outputs/injected_transits_datapoints.csv', header=1)
 
 df['best_period'] = df['best_period'].apply(lambda x: float(x.replace(' d', '').strip()))
 df['duration'] = df['duration'].apply(lambda x: float(x.replace(' d', '').strip()))

@@ -15,7 +15,7 @@ injected_snr = injected_data['snr']
 noninjected_snr = noninjected_data['snr']
 
 # Create custom bins
-bins = 30
+bins = 40
 injected_logbins = np.logspace(np.log10(injected_snr.min()), np.log10(injected_snr.max()), bins)
 # noninjected_logbins = np.logspace(np.log10(noninjected_snr.min()), np.log10(noninjected_snr.max()), bins)
 noninjected_logbins = injected_logbins
@@ -24,6 +24,8 @@ noninjected_logbins = injected_logbins
 plt.figure(figsize=(10, 6))
 plt.hist(injected_snr, bins=injected_logbins, alpha=0.7, label='Injected SNR', color='blue')
 plt.hist(noninjected_snr, bins=noninjected_logbins, alpha=0.7, label='Non-injected SNR', color='orange')
+
+# plt.axvline(x=3.77, color='red', linestyle='--', label='SNR Threshold (3.77)')
 
 # Add labels, title, and legend
 plt.xscale('log')
@@ -35,4 +37,4 @@ plt.legend()
 
 # Show the plot
 plt.tight_layout()
-plt.savefig('data_outputs/snr_histogram.png', dpi=300)
+plt.savefig('data_outputs/run6analysis/snr_histogram_unmarked.png', dpi=300)
