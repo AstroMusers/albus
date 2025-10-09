@@ -1,0 +1,3 @@
+Threshold on SNR: 3.7
+Counts: TP=54249, FP=54249, FN=22893, TN=22893
+Precision=0.5000, Recall=0.7032, F1=0.5845

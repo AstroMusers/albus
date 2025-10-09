@@ -14,6 +14,7 @@ data['Radius Ratio'] = data['r_p'] * 6400000 / data['r_s']
 radius_ratio = data['Radius Ratio']
 period = data['P_days']
 inclination = data['inc']
+print(min(inclination), max(inclination))
 
 # Create subplots for the histograms
 fig, axes = plt.subplots(1, 3, figsize=(12, 3), sharex=False, sharey=True)
