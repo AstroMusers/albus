@@ -12,26 +12,35 @@ from BLSFit import BLSfit, BLSResults, FoldedLC, BLSTestOutputs
 from BLStests import test_period, test_duration, test_depth, test_v_shape, test_snr, test_out_of_transit_variability, create_transit_mask_manual
 from injections import calc_a
 from main_deleteme import fit_fold_and_test
+from readfits import get_tic_match, has_tess_lightcurve
+from astroquery.mast import Observations
 
-df = pd.read_csv('data_inputs/tess_targets_data.csv')
-lc = None
-while lc is None:
-    # rand = random.randint(1, 1290)
-    # tic_id = int(df['Target ID'][rand])
-    tic_id = 320332794
-    print(tic_id)
-    try: lc = preprocess(tic_id, TICID=True)
-    except: pass
+print("Testing get_tic_match function:")
 
-inj = inject_transit(tic_id, lc, lc['time'].value,
-                    radius_star = 0.1,   # radius of white dwarf in Solar radii
-                    mass_star = 0.6,              # mass of white dwarf in Solar masses
-                    radius_planet = 0.1,     # radius of planet in Solar radii
-                    albedo_planet=0.1, 
-                    period=4,
-                    inclination=90,
-                    ID=999,
-                    #a=a / (r_s / 6.957e+8) # Semi-major axis in Solar radii. DO NOT UNCOMMENT. BUGGED!
-        )
+TESS_MAG_LIMIT = 16.0
 
-fit_fold_and_test(inj, folder='presentation_plots/BLS', output_file='inj_output_file', Injected=True)
+ra = 359.740556
+dec = -44.953790
+key = f"{ra:.6f},{dec:.6f}"
+
+tic_id, tmag = get_tic_match(ra, dec)
+print(f"TIC ID: {tic_id}, Tmag: {tmag}")
+
+obs_table = Observations.get_metadata("observations")
+with open('test_observations.csv', 'w', newline='') as f:
+    writer = csv.writer(f)
+    writer.writerow(obs_table.colnames)
+    for row in obs_table:
+        writer.writerow(row)
+
+print("Testing has_tess_lightcurve function:")
+if tic_id is not None:
+    obs = Observations.query_criteria(
+        target_name=f"TIC {tic_id}",
+        obs_collection="TESS",
+        dataproduct_type="timeseries"
+    )
+    print(f"TESS lightcurve exists: {obs is not None and len(obs) > 0}")
+
+else:
+    print("No TIC ID found; cannot check for TESS lightcurve.")

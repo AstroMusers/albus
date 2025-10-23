@@ -1,20 +1,21 @@
-"""
-Classifier Performance Visualization (Pos/Neg CSVs) — v7
+# Patch to v6: replace subplot_mosaic None placeholders with a dedicated empty sentinel '.'
+# and call subplot_mosaic(..., empty_sentinel='.') to avoid version issues.
 
-Updates:
-- Log scaling is now applied to the **mean** parameter (in addition to radius_ratio).
-- Corner plots include a **diagonal of 1D histograms** (uniform bins; log-binned for radius_ratio and mean).
-- Corner mosaic uses `empty_sentinel='.'` for wide Matplotlib compatibility.
-- Lower triangle panels are square and packed (no wasted upper-triangle space).
+"""
+Classifier Performance Visualization (Pos/Neg CSVs) — v6
+
+Fix:
+- `subplot_mosaic` now uses an explicit empty sentinel '.' to avoid
+  "non-rectangular or non-contiguous area" errors on older Matplotlibs.
+- Corner plot remains packed lower triangle with square panels.
 
 Usage:
     python datavis_scripts/recallplots.py \
         --pos_csv data_outputs/injected_transits_output6.csv \
-        --neg_csv data_outputs/injected_transits_output6.csv \
+        --neg_csv data_outputs/noninjected_transits_output6.csv \
         --out data_outputs/run6analysis/recallplots4 \
         --thr 3.70 \
-        --bins 12 \
-        --corner_cell_inches 3.0
+        --bins 20 
 """
 
 import argparse
@@ -23,8 +24,12 @@ from typing import Dict, Tuple, List
 
 import numpy as np
 import pandas as pd
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
+
+# mpl.rcParams['axes.formatter.useoffset'] = False
+
 
 def ensure_out(out_dir: str):
     os.makedirs(out_dir, exist_ok=True)
@@ -51,11 +56,9 @@ def basic_line_plot(x, y, xlabel, ylabel, title, out_path, x_log=False):
     plt.figure()
     plt.plot(x, y, marker='o')
     if x_log:
-        x = np.array(x)
-        if np.any(x > 0):
-            xmin = np.nanmin(x[x > 0])
-            plt.xscale('log')
-            plt.xlim(left=xmin*0.95)
+        xmin = np.nanmin(np.array(x)[np.array(x) > 0]) if np.any(np.array(x) > 0) else 1.0
+        plt.xscale('log')
+        plt.xlim(left=xmin*0.95)
     plt.gca().xaxis.set_major_locator(MaxNLocator(nbins=8))
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
@@ -78,7 +81,7 @@ def basic_heatmap(Z, x_edges, y_edges, xlabel, ylabel, title, out_path,
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
     ax.set_title(title)
-    ax.set_aspect('equal', adjustable='box')
+    # ax.set_aspect('equal', adjustable='box')
     fig.tight_layout()
     fig.savefig(out_path, dpi=200)
     plt.close(fig)
@@ -231,34 +234,85 @@ def binned_metrics_2d_uniform(y_true: np.ndarray, y_pred: np.ndarray,
         'TP': TP, 'TN': TN, 'FP': FP, 'FN': FN,
     }
 
-def corner_plot_with_hist(params: Dict[str, np.ndarray],
-                          y_true: np.ndarray, y_pred: np.ndarray,
-                          bins: int, metric: str, out_path: str,
-                          log_params: List[str], cell_inches: float):
+def binned_stat_2d_uniform(x: np.ndarray, y: np.ndarray, z: np.ndarray, bins: int,
+                           x_log: bool, y_log: bool, stat: str = 'median') -> Dict[str, np.ndarray]:
     """
-    Packed lower-triangular corner plot with 1D histograms on the diagonal.
+    Compute a binned 2D statistic Z over (x,y) with uniform bins.
+    stat ∈ {'median','mean','min','max','count'}.
+    Returns: {'Z': array(H,W), 'x_edges':..., 'y_edges':..., 'N':counts(H,W)}
+    """
+    mask = np.isfinite(x) & np.isfinite(y) & np.isfinite(z)
+    x, y, z = x[mask].astype(float), y[mask].astype(float), z[mask].astype(float)
+
+    x_edges = uniform_edges(x, bins, log_scale=x_log)
+    y_edges = uniform_edges(y, bins, log_scale=y_log)
+
+    xi = np.digitize(x, x_edges) - 1
+    yi = np.digitize(y, y_edges) - 1
+    xi = np.clip(xi, 0, len(x_edges)-2)
+    yi = np.clip(yi, 0, len(y_edges)-2)
+
+    H, W = len(y_edges)-1, len(x_edges)-1
+    Z = np.full((H, W), np.nan, dtype=float)
+    N = np.zeros((H, W), dtype=int)
+
+    # collect values per cell
+    buckets = [[[] for _ in range(W)] for __ in range(H)]
+    for i in range(len(xi)):
+        r, c = yi[i], xi[i]
+        buckets[r][c].append(z[i])
+        N[r, c] += 1
+
+    for r in range(H):
+        for c in range(W):
+            vals = buckets[r][c]
+            if not vals:
+                continue
+            arr = np.asarray(vals, dtype=float)
+            if stat == 'median':
+                Z[r, c] = np.median(arr)
+            elif stat == 'mean':
+                Z[r, c] = np.mean(arr)
+            elif stat == 'min':
+                Z[r, c] = np.min(arr)
+            elif stat == 'max':
+                Z[r, c] = np.max(arr)
+            elif stat == 'count':
+                Z[r, c] = float(len(arr))
+            else:
+                raise ValueError(f"Unsupported stat: {stat}")
+
+    return {'Z': Z, 'x_edges': x_edges, 'y_edges': y_edges, 'N': N}
+
+def corner_heatmap(params: Dict[str, np.ndarray],
+                   y_true: np.ndarray, y_pred: np.ndarray,
+                   bins: int, metric: str, out_path: str,
+                   log_params: List[str], cell_inches: float,
+                   snr: np.ndarray = None, stat: str = 'median',
+                   title_suffix: str = ""):
+    """
+    Lower-triangular corner plot.
+    metric ∈ {'precision','recall','f1','snr'}.
+      - 'snr' shows the per-bin statistic of SNR over (x,y) bins (default median).
     """
     names = list(params.keys())
     n = len(names)
 
-    # Build mosaic with '.' sentinel for empty cells.
+    # Build mosaic with '.' as empty sentinel (works across Matplotlib versions)
     mosaic = []
     for i in range(n):
         row = []
         for j in range(n):
-            if i < j:
-                row.append('.')  # empty upper triangle
-            elif i == j:
-                row.append(f'd{i}')  # diagonal histogram
+            if i <= j:
+                row.append('.')  # empty
             else:
-                row.append(f'{i}-{j}')  # lower triangle heatmap
+                row.append(f'{i}-{j}')
         mosaic.append(row)
 
     fig = plt.figure(constrained_layout=True, figsize=(cell_inches*n, cell_inches*n))
     ax_dict = fig.subplot_mosaic(mosaic, empty_sentinel='.')
 
     mappable = None
-    # Lower triangle heatmaps
     for i in range(1, n):
         for j in range(0, i):
             key = f'{i}-{j}'
@@ -267,17 +321,31 @@ def corner_plot_with_hist(params: Dict[str, np.ndarray],
             xarr, yarr = params[xname], params[yname]
             x_log = xname in log_params
             y_log = yname in log_params
-            grid = binned_metrics_2d_uniform(y_true, y_pred, xarr, yarr, bins=bins,
-                                             x_log=x_log, y_log=y_log)
-            Z = grid[metric]
-            X, Y = np.meshgrid(grid['x_edges'], grid['y_edges'])
-            im = ax.pcolormesh(X, Y, Z, shading='auto', vmin=0.0, vmax=1.0)
+
+            if metric.lower() == 'snr':
+                if snr is None:
+                    raise ValueError("corner_heatmap(metric='snr') requires snr array.")
+                grid = binned_stat_2d_uniform(xarr, yarr, snr, bins=bins, x_log=x_log, y_log=y_log, stat=stat)
+                Z = grid['Z']
+                x_edges, y_edges = grid['x_edges'], grid['y_edges']
+                cbar_label = f"SNR ({stat})"
+                vmin = None; vmax = None  # let Matplotlib autoscale
+            else:
+                grid = binned_metrics_2d_uniform(y_true, y_pred, xarr, yarr, bins=bins, x_log=x_log, y_log=y_log)
+                Z = grid[metric.lower()]
+                x_edges, y_edges = grid['x_edges'], grid['y_edges']
+                cbar_label = metric
+                vmin = 0.0; vmax = 1.0
+
+            X, Y = np.meshgrid(x_edges, y_edges)
+            im = ax.pcolormesh(X, Y, Z, shading='auto', vmin=vmin, vmax=vmax)
             if mappable is None:
                 mappable = im
             if x_log:
                 ax.set_xscale('log')
             if y_log:
                 ax.set_yscale('log')
+
             if i == n-1:
                 ax.set_xlabel(xname)
             else:
@@ -286,38 +354,14 @@ def corner_plot_with_hist(params: Dict[str, np.ndarray],
                 ax.set_ylabel(yname)
             else:
                 ax.set_yticklabels([])
-            ax.set_box_aspect(1)
 
-    # Diagonal histograms
-    for i in range(n):
-        key = f'd{i}'
-        ax = ax_dict[key]
-        pname = names[i]
-        arr = params[pname]
-        log_scale = (pname in log_params)
-        arr = arr[np.isfinite(arr)]
-        if arr.size == 0:
-            arr = np.array([0.0])
-        edges = uniform_edges(arr, bins, log_scale=log_scale)
-        hist, _ = np.histogram(arr, bins=edges)
-        centers = 10**((np.log10(edges[:-1]) + np.log10(edges[1:]))/2.0) if log_scale and np.all(edges>0) else (edges[:-1] + edges[1:]) / 2.0
-        widths = np.diff(edges)
-        ax.bar(centers, hist, width=widths, align='center', edgecolor='none')
-        if log_scale:
-            ax.set_xscale('log')
-        if i == n-1:
-            ax.set_xlabel(pname)
-        else:
-            ax.set_xticklabels([])
-        ax.set_yticklabels([])
-        ax.set_box_aspect(1)
+            ax.set_box_aspect(1)  # square panel
 
-    # Shared colorbar for heatmaps
     if mappable is not None:
         cax = fig.add_axes([0.92, 0.10, 0.02, 0.80])
-        fig.colorbar(mappable, cax=cax, label=metric)
+        fig.colorbar(mappable, cax=cax, label=cbar_label)
 
-    fig.suptitle(f'Corner Heatmap — {metric.capitalize()}', y=0.995)
+    fig.suptitle(f'Corner Heatmap — {metric.capitalize()}' + (f' — {title_suffix}' if title_suffix else ""))
     fig.savefig(out_path, dpi=200)
     plt.close(fig)
 
@@ -327,8 +371,8 @@ def main():
     ap.add_argument('--neg_csv', required=True, help='CSV with all FALSE systems')
     ap.add_argument('--out', required=True, help='Output directory')
     ap.add_argument('--thr', type=float, default=3.70, help='Detection threshold applied to SNR')
-    ap.add_argument('--bins', type=int, default=12, help='Number of bins for 1D/2D binning (same for x/y)')
-    ap.add_argument('--corner_cell_inches', type=float, default=3.0, help='Size per corner panel (inches)')
+    ap.add_argument('--bins', type=int, default=10, help='Number of bins for 1D/2D binning (same for x/y)')
+    ap.add_argument('--corner_cell_inches', type=float, default=2.4, help='Size per corner panel (inches)')
     args = ap.parse_args()
 
     ensure_out(args.out)
@@ -356,7 +400,7 @@ def main():
     r_s = pd.to_numeric(df['r_s'], errors='coerce').to_numpy()
     radius_ratio = r_p * 6_400_000.0 / r_s
     period = pd.to_numeric(df['period'], errors='coerce').to_numpy()
-    inclination = pd.to_numeric(df['inc'], errors='coerce').to_numpy()
+    cos_inclination = np.cos(pd.to_numeric(df['inc'], errors='coerce').to_numpy())
     a_vals = pd.to_numeric(df['a'], errors='coerce').to_numpy()
     duration = pd.to_numeric(df['duration'], errors='coerce').to_numpy()
     mean_depth = pd.to_numeric(df['mean'], errors='coerce').to_numpy()
@@ -368,10 +412,10 @@ def main():
         'y_pred': y_pred,
         'radius_ratio': radius_ratio,
         'period': period,
-        'inclination': inclination,
+        'cos(i)': cos_inclination,
         'a': a_vals,
         'duration': duration,
-        'mean': mean_depth,
+        'mean depth': mean_depth,
     })
     ref.to_csv(os.path.join(args.out, 'params_overview.csv'), index=False)
 
@@ -383,17 +427,17 @@ def main():
         f.write(f'Counts: TP={tp}, FP={fp}, FN={fn}, TN={tn}\n')
         f.write(f'Precision={precision:.4f}, Recall={recall:.4f}, F1={f1:.4f}\n')
 
-    # 1D binned metrics (uniform bins; log x-axis for radius_ratio and mean)
+    # 1D binned metrics (uniform bins; log x-axis ONLY for radius_ratio)
     params_1d = {
-        'radius_ratio': radius_ratio,
-        'period': period,
-        'inclination': inclination,
+        'Radius Ratio': radius_ratio,
+        'Period': period,
+        'cos(i)': cos_inclination,
         'a': a_vals,
-        'duration': duration,
-        'mean': mean_depth,
+        'Duration': duration,
+        'Mean Depth': mean_depth,
     }
     for pname, arr in params_1d.items():
-        log_scale = (pname in ['radius_ratio', 'mean'])
+        log_scale = (pname == 'Radius Ratio')
         res = binned_metrics_uniform(y_true, y_pred, arr, bins=args.bins, log_scale=log_scale)
         res.to_csv(os.path.join(args.out, f'{pname}_binned_metrics.csv'), index=False)
         basic_line_plot(res['center'], res['precision'], pname, 'Precision',
@@ -406,21 +450,15 @@ def main():
                         f'F1 vs {pname}', os.path.join(args.out, f'{pname}_f1.png'),
                         x_log=log_scale)
 
-    # 2D heatmaps (log axes when axis is radius_ratio or mean)
+    # A few 2D heatmaps outside corner
     pairs = [
-        ('radius_ratio', radius_ratio, 'period', period),
-        ('radius_ratio', radius_ratio, 'inclination', inclination),
-        ('radius_ratio', radius_ratio, 'a', a_vals),
-        ('radius_ratio', radius_ratio, 'duration', duration),
-        ('radius_ratio', radius_ratio, 'mean', mean_depth),
-        ('period', period, 'mean', mean_depth),
-        ('inclination', inclination, 'mean', mean_depth),
-        ('a', a_vals, 'mean', mean_depth),
-        ('duration', duration, 'mean', mean_depth),
+        ('Radius Ratio', radius_ratio, 'Period', period),
+        ('Radius Ratio', radius_ratio, 'cos(i)', cos_inclination),
+        ('Period', period, 'cos(i)', cos_inclination),
     ]
     for (xname, xarr, yname, yarr) in pairs:
-        x_log = (xname in ['radius_ratio', 'mean'])
-        y_log = (yname in ['radius_ratio', 'mean'])
+        x_log = (xname == 'Radius Ratio')
+        y_log = (yname == 'Radius Ratio')
         grid = binned_metrics_2d_uniform(y_true, y_pred, xarr, yarr, bins=args.bins,
                                          x_log=x_log, y_log=y_log)
         basic_heatmap(grid['precision'], grid['x_edges'], grid['y_edges'],
@@ -440,22 +478,50 @@ def main():
     calibration_curve_plot(y_true, snr, n_bins=args.bins,
                            out_path=os.path.join(args.out, 'calibration_curve.png'))
 
-    # Corner plots (packed, with diagonal histograms)
+    # Corner plots (packed, square)
     corner_params = {
-        'radius_ratio': radius_ratio,
-        'period': period,
-        'inclination': inclination,
+        'Radius Ratio': radius_ratio,
+        'Period': period,
+        'cos(i)': cos_inclination,
         'a': a_vals,
-        'duration': duration,
-        'mean': mean_depth,
+        'Duration': duration,
+        'Mean Depth': mean_depth,
     }
-    log_params = ['radius_ratio', 'mean']
-    corner_plot_with_hist(corner_params, y_true, y_pred, bins=args.bins, metric='precision',
-                          out_path=os.path.join(args.out, 'corner_precision.png'),
-                          log_params=log_params, cell_inches=args.corner_cell_inches)
-    corner_plot_with_hist(corner_params, y_true, y_pred, bins=args.bins, metric='recall',
-                          out_path=os.path.join(args.out, 'corner_recall.png'),
-                          log_params=log_params, cell_inches=args.corner_cell_inches)
+    log_params = ['Radius Ratio']  # only Radius Ratio uses log scale
+
+    # Masks
+    pos_mask = (y_true == 1)
+    neg_mask = (y_true == 0)
+
+    # Filtered parameter dicts (edges/bins are computed from subset ranges)
+    corner_params_pos = {k: v[pos_mask] for k, v in corner_params.items()}
+    corner_params_neg = {k: v[neg_mask] for k, v in corner_params.items()}
+
+    # Filtered SNR arrays
+    snr_pos = snr[pos_mask]
+    snr_neg = snr[neg_mask]
+
+    corner_heatmap(corner_params, y_true, y_pred, bins=args.bins, metric='precision',
+                   out_path=os.path.join(args.out, 'corner_precision.png'),
+                   log_params=log_params, cell_inches=args.corner_cell_inches)
+    corner_heatmap(corner_params, y_true, y_pred, bins=args.bins, metric='recall',
+                   out_path=os.path.join(args.out, 'corner_recall.png'),
+                   log_params=log_params, cell_inches=args.corner_cell_inches)
+    # SNR (positives / injections)
+    corner_heatmap(corner_params_pos, y_true[pos_mask], y_pred[pos_mask],
+        bins=args.bins, metric='snr',
+        out_path=os.path.join(args.out, 'corner_snr_positive.png'),
+        log_params=log_params, cell_inches=args.corner_cell_inches,
+        snr=snr_pos, stat='median', title_suffix='Positives'
+    )
+
+    # SNR (negatives / non-injections)
+    corner_heatmap(corner_params_neg, y_true[neg_mask], y_pred[neg_mask],
+        bins=args.bins, metric='snr',
+        out_path=os.path.join(args.out, 'corner_snr_negative.png'),
+        log_params=log_params, cell_inches=args.corner_cell_inches,
+        snr=snr_neg, stat='median', title_suffix='Negatives'
+    )
 
     print(f"Done. Outputs saved in: {args.out}")
 

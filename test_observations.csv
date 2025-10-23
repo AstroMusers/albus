@@ -1,0 +1,35 @@
+Column Name,Column Label,Data Type,Units,Description,Examples/Valid Values
+intentType,Observation Type,string,,Whether observation is for science or calibration.,"Valid values: science, calibration"
+obs_collection,Mission,string,,Collection,"E.g. SWIFT, PS1, HST, IUE"
+provenance_name,Provenance Name,string,,"Provenance name, or source of data","E.g. TASOC, CALSTIS, PS1"
+instrument_name,Instrument,string,,Instrument Name,"E.g. WFPC2/WFC, UVOT, STIS/CCD"
+project,Project,string,,Processing project,"E.g. HST, HLA, EUVE, hlsp_legus"
+filters,Filters,string,,Instrument filters,"F469N, NUV, FUV, LOW DISP, MIRROR"
+wavelength_region,Waveband,string,,Energy Band,"EUV, XRAY, OPTICAL"
+target_name,Target Name,string,,Target Name,Ex. COMET-67P-CHURYUMOV-GER-UPDATE
+target_classification,Target Classification,string,,Type of target,Ex. COMET;COMET BEING ORBITED BY THE ROSETTA SPACECRAFT;SOLAR SYSTEM
+obs_id,Observation ID,string,,"Observation identifier, given by mission","U24Z0101T, N4QF18030"
+s_ra,RA,float,deg,Observation Right Ascension,"May be displayed in the Portal as hh:mm:ss.sss, but should be searched as decimal"
+s_dec,Dec,float,deg,Observation Declination,"May be displayed in the Portal as hh:mm:ss.sss, but should be searched as decimal"
+proposal_id,Proposal ID,string,,Proposal ID,"E.g. EGCJC, 11360, 9401"
+proposal_pi,Principal Investigator,string,,Principal investigator's last name,"Chander, Chu, Malkin"
+obs_title,Observation Title,string,,Observation description from proposal,Age-dating Star Clusters in M101
+dataproduct_type,Product Type,string,,Type of product,"Valid values: IMAGE, SPECTRUM, SED, TIMESERIES, VISIBILITY, EVENTLIST, CUBE, CATALOG, ENGINEERING, NULL"
+calib_level,Calibration Level,integer,,Calibration level,"0 = raw, 1 = uncalibrated, 2 = calibrated, 3 = science product, 4 = contributed science product"
+t_min,Start Time,float,MJD,Observation start datetime,"May be displayed in the Portal as YYY-MM-DD HH:MM, but should be searched as MJD"
+t_max,End Time,float,MJD,Observation end datetime,"May be displayed in the Portal as YYY-MM-DD HH:MM, but should be searched as MJD"
+t_obs_release,Release Date,float,MJD,Dataset release date,"May be displayed in the Portal as YYY-MM-DD HH:MM, but should be searched as MJD"
+t_exptime,Exposure Length,float,sec,Exposure time,
+em_min,Min. Wavelength,float,nm,Minimum Wavelength,
+em_max,Max. Wavelength,float,nm,Maximum Wavelength,
+objID,Object ID,integer,,Plane ID of observation at given calibration level,"Long integer, e.g. 2012969445"
+s_region,s_region,string,ICRS Shape,STC/S Footprint,Will be ICRS circle or polygon. E.g. CIRCLE ICRS 17.71740689 -58.40043015 0.625
+jpegURL,jpegURL,string,,Preview Image URL,https://archive.stsci.edu/hst/previews/N4QF/N4QF18090.jpg
+distance,"Distance ("")",float,arcsec,Angular separation between searched coordinates and center of obsevation,
+obsid,Product Group ID,integer,,Database identifier for obs_id,"Long integer, e.g. 2007590987"
+dataRights,Data Rights,string,,Data Rights,"valid values: public,exclusive_access,restricted"
+mtFlag,Moving Target,boolean,,Moving Target Flag,"If True, observation contains a moving target, if False or absent observation may or may not contain a moving target"
+srcDen,Number of Catalog Objects,float,,Number of cataloged objects found in observation,
+dataURL,Data URL,string,,Data URL,
+proposal_type,Proposal Type,string,,Type of telescope proposal,"Eg. 3PI, GO, GO/DD, HLA, GII, AIS"
+sequence_number,Sequence Number,integer,,"Sequence number, e.g. Kepler quarter or TESS sector",
