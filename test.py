@@ -19,26 +19,19 @@ print("Testing get_tic_match function:")
 
 TESS_MAG_LIMIT = 16.0
 
-ra = 359.740556
-dec = -44.953790
+ra = 359.389245402092 
+dec = -14.902684073316706
 key = f"{ra:.6f},{dec:.6f}"
 
 tic_id, tmag = get_tic_match(ra, dec)
 print(f"TIC ID: {tic_id}, Tmag: {tmag}")
 
-obs_table = Observations.get_metadata("observations")
-with open('test_observations.csv', 'w', newline='') as f:
-    writer = csv.writer(f)
-    writer.writerow(obs_table.colnames)
-    for row in obs_table:
-        writer.writerow(row)
-
 print("Testing has_tess_lightcurve function:")
 if tic_id is not None:
     obs = Observations.query_criteria(
-        target_name=f"TIC {tic_id}",
+        target_name=f"{tic_id}",
         obs_collection="TESS",
-        dataproduct_type="timeseries"
+        dataproduct_type="TIMESERIES"
     )
     print(f"TESS lightcurve exists: {obs is not None and len(obs) > 0}")
 

@@ -76,7 +76,7 @@ def has_tess_lightcurve(tic_id=None, ra_deg=None, dec_deg=None):
     if tic_id:
         obs = with_retries(
             Observations.query_criteria,
-            target_name=f"TIC {tic_id}",
+            target_name=f"{tic_id}",
             obs_collection="TESS",
             dataproduct_type="timeseries",
             retries=3
