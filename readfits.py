@@ -10,12 +10,12 @@ from math import isfinite
 
 # --- Parameters ---
 INPUT_FITS = '/Users/aavikwadivkar/Documents/Exoplanets/Ampersand/gaiaedr3_wd_main.fits'
-LOG_FILE = 'wd_progress.json'
+LOG_FILE = 'data_inputs/wd_progress.json'
 
-CSV_BRIGHT_LC = 'wd_bright_lc_summary.csv'
-CSV_FAINT_LC  = 'wd_faint_lc_summary.csv'
-FITS_BRIGHT_LC = 'wd_bright_lc.fits'
-FITS_FAINT_LC  = 'wd_faint_lc.fits'
+CSV_BRIGHT_LC = 'data_inputs/wd_bright_lc_summary.csv'
+CSV_FAINT_LC  = 'data_inputs/wd_faint_lc_summary.csv'
+FITS_BRIGHT_LC = 'data_inputs/wd_bright_lc.fits'
+FITS_FAINT_LC  = 'data_inputs/wd_faint_lc.fits'
 
 RADIUS_ARCSEC = 2.0
 TMAG_BRIGHT_CUTOFF = 16.0  # "brighter than 16" => Tmag < 16
