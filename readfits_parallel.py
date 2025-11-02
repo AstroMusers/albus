@@ -25,14 +25,13 @@ RADIUS_ARCSEC = 2.0
 TMAG_BRIGHT_CUTOFF = 16.0  # "brighter than 16" => Tmag < 16
 
 # Concurrency:
-# On a 128-core server, try WORKERS=128, TIC_MAX=48, LC_MAX=24.
-WORKERS = 96           # laptop 16–32; server 64–128
-TIC_MAX = 48           # concurrent TIC queries
+WORKERS = 64           # laptop 16–32; server 64–128
+TIC_MAX = 32           # concurrent TIC queries
 LC_MAX  = 24           # concurrent LC queries
 
 RETRIES    = 3
 BASE_DELAY = 0.6
-SAVE_EVERY = 1         # save JSON after every N completions (1 = every result)
+SAVE_EVERY = 200         # save JSON after every N completions (1 = every result)
 # ------------------------------------------
 
 # -------- safe load/save progress ----------
@@ -238,13 +237,13 @@ if __name__ == "__main__":
             if rkey in seen_b_radec6:  # already present, skip writing
                 return
             with open(CSV_BRIGHT_LC, 'a', newline='') as f:
-                csv.writer(f).writerow([ra6, dec6, tic_id, tmag])
+                csv.writer(f).writerow([ra_val, dec_val, tic_id, tmag])
             seen_b_radec6.add(rkey)
         elif category == 'faint_lc':
             if rkey in seen_f_radec6:
                 return
             with open(CSV_FAINT_LC, 'a', newline='') as f:
-                csv.writer(f).writerow([ra6, dec6, tic_id, tmag])
+                csv.writer(f).writerow([ra_val, dec_val, tic_id, tmag])
             seen_f_radec6.add(rkey)
 
     # One-shot worker: TIC + LC together
