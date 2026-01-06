@@ -38,7 +38,7 @@ def main():
     y_true = np.concatenate([np.ones(len(snr_pos)), np.zeros(len(snr_neg))])
     snr_all = np.concatenate([snr_pos, snr_neg])
 
-    thresholds = np.logspace(np.log10(0.1), np.log10(100), args.n_thresholds)
+    thresholds = np.logspace(np.log10(1), np.log10(100), args.n_thresholds)
     records = []
     for thr in thresholds:
         y_pred = (snr_all >= thr).astype(int)
@@ -80,6 +80,15 @@ def main():
     plt.axvline(x=max_f1_threshold, color='r', linestyle='--', label=f'Max F1 = {max_f1:.2f} at Threshold = {max_f1_threshold:.2f}')
     plt.legend()
     plt.grid(); plt.savefig(os.path.join(args.outdir,"recall_curve.png")); plt.close()
+
+    plt.figure()
+    plt.plot(df["threshold"], df["precision"], label="Precision", color="blue")
+    plt.plot(df["threshold"], df["recall"], label="Recall", color="orange")
+    plt.xlabel("Threshold"); plt.ylabel("Score"); plt.title("Precision & Recall Curve")
+    plt.xscale("log"); plt.ylim(0,1.05)
+    plt.axvline(x=max_f1_threshold, color='r', linestyle='--', label=f'Max F1 = {max_f1:.2f} at Threshold = {max_f1_threshold:.2f}')
+    plt.legend()
+    plt.grid(); plt.savefig(os.path.join(args.outdir,"precision_recall_curve_separate.png")); plt.close()
 
     # PR curve
     plt.figure()

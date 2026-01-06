@@ -11,19 +11,10 @@ from BLStests import test_depth, test_v_shape, test_snr, test_out_of_transit_var
 import gc
 
 df = pd.read_csv('data_inputs/tess_targets_data.csv')
-inj_output_file = 'data_outputs/injected_transits_output5.csv'
-noninj_output_file = 'data_outputs/noninjected_transits_output5.csv'
+inj_output_file = 'data_outputs/injected_transits_output6.csv'
+noninj_output_file = 'data_outputs/noninjected_transits_output6.csv'
 
-try:
-    out = pd.read_csv(inj_output_file)
-    out_ids = set(pd.to_numeric(out['ID'], errors='coerce').dropna().astype(int))
-except FileNotFoundError:
-    out_ids = set()
 
-# Next numeric ID (monotone)
-next_id = (max(out_ids) + 1) if out_ids else 0
-
-# samples = 400
 G = 6.67e-11
 
 def sample_power_law(min_val, max_val, alpha, size=None):

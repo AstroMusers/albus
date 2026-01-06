@@ -10,7 +10,8 @@ from injections import inject_transit
 from BLSFit import BLSfit, BLSResults, FoldedLC, BLSTestOutputs
 from BLStests import test_period, test_duration, test_depth, test_v_shape, test_snr, test_out_of_transit_variability, transit_depth_quantile_phase
 
-df = pd.read_csv('data_inputs/tess_targets_data.csv')
+
+df = pd.read_csv('data_inputs/tess_targets_data_old.csv')
 # output_file = 'Pipeline/injected_transits_datapoints.csv'
 
 # out = pd.read_csv('Pipeline/injected_transits_datapoints.csv')
@@ -23,8 +24,8 @@ while lc is None:
     rand = random.randint(1, 1290)
     # rand = 602
     # print(rand)
-    tic_id = int(df['Target ID'][rand])
-    # tic_id = 199574211
+    tic_id = int(df['TargetID'][rand])
+    tic_id = 435187907
     print(tic_id)
     try: lc = preprocess(tic_id, TICID=True)
     except: pass
@@ -64,7 +65,7 @@ inj = inject_transit(tic_id, lc, lc['time'].value,
 
 # Run BLS
 results = BLSfit(inj)
-high_periods, high_powers, best_period, t0, duration = BLSResults(results, plot='')
+high_periods, high_powers, best_period, t0, duration = BLSResults(results, folder='sampleBLS', plot='save', ID=tic_id)
 print(f"Best period: {best_period}, t0: {t0}, duration: {duration}")
 # for period in high_periods: 
 #     # FoldedLC(inj, period, t0, plot='show', bin=False)                
@@ -90,7 +91,7 @@ print(f"Best period: {best_period}, t0: {t0}, duration: {duration}")
 # plt.show()
 # plt.close()
 
-folded_lc = FoldedLC(inj, best_period, t0, bin=True, time_bin_size=0.001, output=True)
+folded_lc = FoldedLC(inj, best_period, t0, bin=True, time_bin_size=0.001, output=True, plot='save', folder='sampleBLS', ID=tic_id)
 transit_mask = np.abs(folded_lc['time'].value) < 0.6 * duration.value
 
 print(f"Transit points: {np.sum(transit_mask)}, Total points: {len(folded_lc)}")
@@ -149,7 +150,7 @@ plt.title(f'Folded Light Curve for TIC {tic_id} at {best_period:.2f} days')
 plt.xlabel('Phase [JD]')
 plt.ylabel('Normalized Flux')
 plt.legend()
-plt.show()
+plt.savefig(f'sampleBLS/Folded_LC_TIC_{tic_id}.png', dpi=300)
 
 try: median, mean, max_depth = test_depth(folded_lc['time'],
                 folded_lc['flux'],
