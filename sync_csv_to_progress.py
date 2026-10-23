@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-sync_csv_by_ticid_to_progress.py
+sync_csv_to_progress.py
 
 Goal:
 - For each row in the bright/faint CSVs, ensure an entry exists in wd_progress.json
@@ -9,7 +9,7 @@ Goal:
 - Update fields: status='done', category='bright_lc' or 'faint_lc', tic_id, Tmag.
 
 Usage (defaults match your layout):
-  python sync_csv_by_ticid_to_progress.py \
+    python sync_csv_to_progress.py \
       --progress data_inputs/wd_progress.json \
       --bright_csv data_inputs/wd_bright_lc_summary.csv \
       --faint_csv  data_inputs/wd_faint_lc_summary.csv \
@@ -17,46 +17,17 @@ Usage (defaults match your layout):
 """
 
 import os, json, csv, argparse, time
-from math import isnan
+from catalog_values import finite_or_none
+from progress_io import load_progress_json, save_progress_json
 
 def safe_load_json(path):
-    if not os.path.exists(path):
-        return {}
-    try:
-        with open(path, "r") as f:
-            s = f.read().strip()
-            return json.loads(s) if s else {}
-    except Exception as e:
-        ts = time.strftime("%Y%m%d-%H%M%S")
-        bad = f"{path}.bad-{ts}"
-        try:
-            os.replace(path, bad)
-            print(f"[warn] Progress file invalid ({e}). Backed up to {bad}. Starting fresh dict.")
-        except Exception:
-            print(f"[warn] Progress file invalid ({e}). Could not back it up; starting fresh dict.")
-        return {}
+    return load_progress_json(path)
 
 def safe_save_json(path, obj):
-    tmp = path + ".tmp"
-    with open(tmp, "w") as f:
-        json.dump(obj, f, indent=2)
-        f.flush()
-        os.fsync(f.fileno())
-    os.replace(tmp, path)
+    return save_progress_json(path, obj)
 
 def parse_float_or_none(x):
-    if x is None:
-        return None
-    xs = str(x).strip()
-    if xs == "":
-        return None
-    try:
-        v = float(xs)
-        if isnan(v):
-            return None
-        return v
-    except Exception:
-        return None
+    return finite_or_none(x)
 
 def strip_keys(d):
     """Return a copy of row dict with header names stripped of whitespace."""
@@ -79,6 +50,7 @@ def tic_index(progress):
 
 def upsert(progress, key, category, tic_id, tmag):
     """Create or update a JSON entry at 'key' with given fields."""
+    existed = key in progress
     entry = progress.get(key, {})
     changed = False
 
@@ -97,9 +69,9 @@ def upsert(progress, key, category, tic_id, tmag):
         entry["Tmag"] = tmag
         changed = True
 
-    if changed or key not in progress:
+    if changed or not existed:
         progress[key] = entry
-        return "added" if key not in progress else "updated"
+        return "updated" if existed else "added"
     return "skipped"
 
 def process_csv(csv_path, category, progress, update_existing=True, migrate_keys=True):
@@ -145,7 +117,17 @@ def process_csv(csv_path, category, progress, update_existing=True, migrate_keys
 
             # If this tic_id already exists in JSON under a different key, migrate
             old_key = idx.get(tic_id)
-            if migrate_keys and old_key is not None and old_key != new_key:
+            moving = old_key is not None and old_key != new_key
+            if moving and not migrate_keys:
+                skipped += 1
+                continue
+            if new_key in progress:
+                destination_tic = progress[new_key].get("tic_id")
+                if moving or (destination_tic is not None and str(destination_tic) != tic_id):
+                    print(f"[warn] Coordinate key {new_key} is occupied; skipping TIC {tic_id}.")
+                    skipped += 1
+                    continue
+            if moving:
                 # Move old entry to new key (merge fields conservatively)
                 old_entry = progress.get(old_key, {})
                 # Prepare merged entry
@@ -165,7 +147,10 @@ def process_csv(csv_path, category, progress, update_existing=True, migrate_keys
                 migrated += 1
             else:
                 # Normal upsert at new_key
-                res = upsert(progress, new_key, category, tic_id, tmag)
+                entry_category = category
+                if not update_existing and new_key in progress:
+                    entry_category = progress[new_key].get("category", category)
+                res = upsert(progress, new_key, entry_category, tic_id, tmag)
                 if res == "added":
                     added += 1
                     idx.setdefault(tic_id, new_key)
@@ -186,11 +171,17 @@ def main():
                     help="Do NOT change category for existing entries; only set for new ones")
     ap.add_argument("--no_migrate_keys", action="store_true",
                     help="Do NOT move existing tic_id entries to the new RA6,DEC6 key; just update in place if keys match")
-    ap.add_argument("--backup", action="store_true", help="Save a timestamped backup of the JSON after syncing")
+    ap.add_argument("--backup", action="store_true", help="Save a timestamped backup of the JSON before syncing")
     args = ap.parse_args()
 
     progress_path = args.progress
     progress = safe_load_json(progress_path)
+
+    if args.backup:
+        ts = time.strftime("%Y%m%d-%H%M%S")
+        bak = f"{os.path.splitext(progress_path)[0]}-before-tic-sync-{ts}.json"
+        safe_save_json(bak, progress)
+        print(f"[info] Backup written to: {bak}")
 
     added_b, updated_b, skipped_b, migrated_b, skipped_rows_b = process_csv(
         args.bright_csv, "bright_lc", progress,
@@ -202,12 +193,6 @@ def main():
         update_existing=(not args.no_update_existing),
         migrate_keys=(not args.no_migrate_keys)
     )
-
-    if args.backup:
-        ts = time.strftime("%Y%m%d-%H%M%S")
-        bak = f"{os.path.splitext(progress_path)[0]}-before-tic-sync-{ts}.json"
-        safe_save_json(bak, progress)
-        print(f"[info] Backup written to: {bak}")
 
     safe_save_json(progress_path, progress)
 

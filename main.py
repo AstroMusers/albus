@@ -4,8 +4,9 @@ import numpy as np
 import csv
 from tqdm import tqdm
 from matplotlib import pyplot as plt
-from preprocess import preprocess
+from preprocess import preprocess, find_light_curve as _select_light_curve
 from injections import inject_transit
+from injection_sampling import sample_power_law
 from BLSFit import BLSfit, BLSResults, FoldedLC
 from BLStests import test_depth, test_v_shape, test_snr, test_out_of_transit_variability
 import gc
@@ -26,47 +27,18 @@ next_id = (max(out_ids) + 1) if out_ids else 0
 # samples = 400
 G = 6.67e-11
 
-def sample_power_law(min_val, max_val, alpha, size=None):
-    """
-    Draw from PDF f(x) ∝ x^{-alpha}, on [min_val, max_val].
-    """
-    u = np.random.rand()
-    if alpha == 1.0:
-        # x = min * (max/min)^u
-        return min_val * (max_val / min_val) ** u
-    # Inverse CDF for alpha != 1
-    pow_ = 1.0 - alpha
-    a = min_val**pow_
-    b = max_val**pow_
-    return (a + (b - a) * u) ** (1.0 / pow_)
-
-
 def find_light_curve():
-    for _ in range(10):
-        rand = random.randint(0, len(df) - 1)
-        massH = float(df['MassH'].iloc[rand])
-        tic_id = int(df['Target ID'].iloc[rand])
-        m_s = float(massH * 1.989e30)
-        r_s = np.cbrt(m_s / (1e9 * (4/3 * np.pi)))
-        e_r_s = r_s * (1/3) * df['E_MassH'].iloc[rand] / df['MassH'].iloc[rand]
-        
-        try:
-            print(f"Trying TIC ID {tic_id} with mass {massH:.3f} M_sun, radius {r_s/6.957e+8:.3f} R_sun")
-            lc = preprocess(tic_id, TICID=True)
-            return tic_id, lc, massH, m_s, r_s, e_r_s
-        except Exception as e:
-            print(f"Failed to preprocess TIC ID {tic_id} due to {e}, retrying...")
-        return None
+    return _select_light_curve(df, rng=random, preprocess_func=preprocess, verbose=True)
 
 def fit_fold_and_test(lc, folder, output_file, Injected=False):
     print(f"Fitting and testing light curve for {'injected' if Injected else 'non-injected'} data...")
     results = BLSfit(lc)
     print(f"Results: {results}")
-    high_periods, high_powers, best_period, t0, duration = BLSResults(results, plot='save', folder=folder, ID=ID)
+    high_periods, high_powers, best_period, epochs, durations = BLSResults(results, plot='save', folder=folder, ID=ID, candidate_ephemerides=True)
     plt.close('all')
 
     rows = []
-    for period in high_periods:
+    for period, t0, duration in zip(high_periods, epochs, durations):
         folded_lc = FoldedLC(lc, period, t0, ID=ID, plot='', folder=folder, bin=True, time_bin_size=0.001, output=True)
         transit_mask = np.abs(folded_lc['time'].value) < 0.6 * duration.value
 

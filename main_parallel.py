@@ -20,8 +20,9 @@ from multiprocessing import get_context
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from concurrent.futures.process import BrokenProcessPool
 
-from preprocess import preprocess
+from preprocess import preprocess, find_light_curve as _select_light_curve
 from injections import inject_transit
+from injection_sampling import sample_power_law
 from BLSFit import BLSfit, BLSResults, FoldedLC
 from BLStests import test_depth, test_v_shape, test_snr, test_out_of_transit_variability
 
@@ -114,37 +115,11 @@ def compute_resume_state():
     next_id = (max(union) + 1) if union else 0
     return next_id, seen_non, seen_inj
 
-def sample_power_law(min_val, max_val, alpha):
-    """
-    Draw one sample from PDF f(x) ∝ x^{-alpha}, on [min_val, max_val].
-    """
-    u = np.random.rand()
-    if alpha == 1.0:
-        return min_val * (max_val / min_val) ** u
-    pow_ = 1.0 - alpha
-    a = min_val**pow_
-    b = max_val**pow_
-    return (a + (b - a) * u) ** (1.0 / pow_)
-
 def find_light_curve(df, max_tries=10, rng=None):
-    """
-    Randomly pick a TIC from df and try to preprocess. Return tuple or None.
-    """
-    rng = rng or random
-    for _ in range(max_tries):
-        idx = rng.randint(0, len(df) - 1)
-        massH = float(df['MassH'].iloc[idx])
-        tic_id = int(df['Target ID'].iloc[idx])
-        m_s = float(massH * 1.989e30)
-        r_s = np.cbrt(m_s / (1e9 * (4/3 * np.pi)))  # meters
-        e_r_s = r_s * (1/3) * df['E_MassH'].iloc[idx] / df['MassH'].iloc[idx]
-
-        try:
-            lc = preprocess(tic_id, TICID=True)
-            return tic_id, lc, massH, m_s, r_s, e_r_s
-        except Exception:
-            continue
-    return None
+    return _select_light_curve(
+        df, max_tries=max_tries, rng=random if rng is None else rng,
+        preprocess_func=preprocess,
+    )
 
 def fit_fold_and_test(lc, folder, ID, tic_id, r_s, e_r_s, r_p, a, P_days, inc):
     """
@@ -153,13 +128,11 @@ def fit_fold_and_test(lc, folder, ID, tic_id, r_s, e_r_s, r_p, a, P_days, inc):
     """
     os.makedirs(folder, exist_ok=True)
     results = BLSfit(lc)
-    high_periods, high_powers, best_period, t0, duration = BLSResults(results, plot='save', folder=folder, ID=ID)
+    high_periods, high_powers, best_period, epochs, durations = BLSResults(results, plot='save', folder=folder, ID=ID, candidate_ephemerides=True)
     plt.close('all')
 
-    periods_to_check = list(high_periods) if (high_periods is not None and len(high_periods)) else [best_period]
-
     rows = []
-    for period in periods_to_check:
+    for period, t0, duration in zip(high_periods, epochs, durations):
         folded_lc = FoldedLC(
             lc, period, t0, ID=ID, plot='save', folder=folder,
             bin=False, output=True

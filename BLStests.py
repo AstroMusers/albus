@@ -10,10 +10,9 @@ def test_period(bls_periodogram):
                          like 'period_at_max_power' (best-fit period) and potentially others.
     
     Returns:
-        period (float): Best-fit period from the periodogram.
+        period (float or Quantity): Best-fit period, retaining any supplied units.
     """
-    # best_period = bls_periodogram.period_at_max_power  
-    # return best_period
+    return bls_periodogram.period_at_max_power
 
 def test_duration(bls_periodogram):
     """
@@ -24,7 +23,7 @@ def test_duration(bls_periodogram):
                          e.g., 'duration_at_max_power'.
     
     Returns:
-        duration (float): Best-fit transit duration.
+        duration (float or Quantity): Transit duration, retaining any supplied units.
     """
     duration = bls_periodogram.duration_at_max_power  
     return duration
@@ -42,9 +41,11 @@ def test_depth(detrended_time, detrended_flux, transit_mask):
         transit_mask (np.array of bool): Boolean mask indicating in-transit points.
     
     Returns:
-        depth (float): Relative transit depth (e.g., if flux drops to 0.8, depth = 0.2).
+        tuple: Median, mean, and maximum relative depths; all NaN if no transit samples exist.
     """
     in_transit_flux = detrended_flux[transit_mask]
+    if in_transit_flux.size == 0:
+        return np.nan, np.nan, np.nan
 
     median_depth = 1 - np.median(in_transit_flux)
     mean_depth = 1 - np.mean(in_transit_flux)
@@ -115,10 +116,13 @@ def test_snr(detrended_flux, transit_mask):
         transit_mask (np.array of bool): Boolean mask for in-transit points.
     
     Returns:
-        snr (float): The calculated signal-to-noise ratio.
+        snr (float): Depth/scatter ratio, or NaN when a required sample set is empty.
     """
-    depth = 1 - np.mean(detrended_flux[transit_mask])
-    noise = np.std(detrended_flux[~transit_mask])
+    in_transit_flux = detrended_flux[transit_mask]
+    if in_transit_flux.size == 0:
+        return np.nan
+    depth = 1 - np.mean(in_transit_flux)
+    noise = test_out_of_transit_variability(detrended_flux, transit_mask)
     snr = depth / noise if noise > 0 else np.nan
     return snr
 
@@ -134,9 +138,12 @@ def test_out_of_transit_variability(detrended_flux, transit_mask):
         transit_mask (np.array of bool): Boolean mask for in-transit points.
     
     Returns:
-        variability (float): Standard deviation of the out-of-transit flux.
+        variability (float): Standard deviation, or NaN when no baseline samples exist.
     """
-    variability = np.std(detrended_flux[~transit_mask])
+    out_of_transit_flux = detrended_flux[~transit_mask]
+    if out_of_transit_flux.size == 0:
+        return np.nan
+    variability = np.std(out_of_transit_flux)
     return variability
 
 def create_transit_mask_manual(time, period, t0, duration):
@@ -160,6 +167,8 @@ def create_transit_mask_manual(time, period, t0, duration):
     # Convert time to a plain numpy array of floats (in days)
     if isinstance(time, Time):
         time = np.array(time.jd, dtype=float)
+    elif hasattr(time, 'to_value'):
+        time = np.array(time.to_value(u.day), dtype=float)
     else:
         time = np.array(time, dtype=float)
 
@@ -182,6 +191,13 @@ def create_transit_mask_manual(time, period, t0, duration):
         duration = duration.to_value(u.day)
     else:
         duration = float(duration)
+
+    if not np.all(np.isfinite(period)) or np.any(period <= 0):
+        raise ValueError('Transit periods must be finite and positive')
+    if not np.all(np.isfinite(t0)):
+        raise ValueError('Transit epochs must be finite')
+    if not np.all(np.isfinite(duration)) or np.any(duration < 0):
+        raise ValueError('Transit durations must be finite and nonnegative')
 
     # Compute the phase relative to transit mid-point.
     phase = ((time - t0 + 0.5 * period) % period) - 0.5 * period

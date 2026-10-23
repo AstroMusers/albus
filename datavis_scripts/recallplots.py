@@ -27,6 +27,7 @@ import pandas as pd
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
+from tdpy.plotting import apply_plot_theme, configure_plot_style
 
 # mpl.rcParams['axes.formatter.useoffset'] = False
 
@@ -52,7 +53,7 @@ def pr_from_conf(tp: int, fp: int, fn: int) -> Tuple[float,float,float]:
     f1        = f1_score(precision, recall)
     return precision, recall, f1
 
-def basic_line_plot(x, y, xlabel, ylabel, title, out_path, x_log=False):
+def basic_line_plot(x, y, xlabel, ylabel, title, out_path, x_log=False, typeplotback=None):
     plt.figure()
     plt.plot(x, y, marker='o')
     if x_log:
@@ -64,11 +65,12 @@ def basic_line_plot(x, y, xlabel, ylabel, title, out_path, x_log=False):
     plt.ylabel(ylabel)
     plt.title(title)
     plt.tight_layout()
-    plt.savefig(out_path, dpi=200)
+    figure = apply_plot_theme(plt.gcf(), typeplotback)
+    plt.savefig(out_path, dpi=200, facecolor=figure.get_facecolor())
     plt.close()
 
 def basic_heatmap(Z, x_edges, y_edges, xlabel, ylabel, title, out_path,
-                  x_log=False, y_log=False, vmin=0.0, vmax=1.0):
+                  x_log=False, y_log=False, vmin=0.0, vmax=1.0, typeplotback=None):
     fig, ax = plt.subplots()
     X, Y = np.meshgrid(x_edges, y_edges)
     im = ax.pcolormesh(X, Y, Z, shading='auto', vmin=vmin, vmax=vmax)
@@ -83,13 +85,14 @@ def basic_heatmap(Z, x_edges, y_edges, xlabel, ylabel, title, out_path,
     ax.set_title(title)
     # ax.set_aspect('equal', adjustable='box')
     fig.tight_layout()
-    fig.savefig(out_path, dpi=200)
+    apply_plot_theme(fig, typeplotback)
+    fig.savefig(out_path, dpi=200, facecolor=fig.get_facecolor())
     plt.close(fig)
 
-def confusion_matrix_plot(tp, tn, fp, fn, out_path):
+def confusion_matrix_plot(tp, tn, fp, fn, out_path, typeplotback=None):
     plt.figure()
-    M = np.array([[tp, fp],
-                  [fn, tn]])
+    M = np.array([[tp, fn],
+                  [fp, tn]])
     plt.imshow(M, aspect='equal')
     plt.xticks([0,1], ['Pred:1', 'Pred:0'])
     plt.yticks([0,1], ['True:1', 'True:0'])
@@ -97,42 +100,43 @@ def confusion_matrix_plot(tp, tn, fp, fn, out_path):
         plt.text(j, i, str(val), ha='center', va='center')
     plt.title('Confusion Matrix')
     plt.tight_layout()
-    plt.savefig(out_path, dpi=200)
+    figure = apply_plot_theme(plt.gcf(), typeplotback)
+    plt.savefig(out_path, dpi=200, facecolor=figure.get_facecolor())
     plt.close()
 
-def calibration_curve_plot(y_true, y_score, n_bins, out_path):
-    mask = (~np.isnan(y_true)) & (~np.isnan(y_score))
+def calibration_curve_plot(y_true, y_score, n_bins, out_path, *, score_is_probability=False, typeplotback=None):
+    """Plot positive fractions against raw SNR or explicitly supplied probabilities."""
+    if n_bins < 1:
+        raise ValueError('n_bins must be positive')
+    mask = np.isfinite(y_true) & np.isfinite(y_score)
     y_true = y_true[mask]
     y_score = y_score[mask]
-    try:
-        bins = pd.qcut(y_score, q=n_bins, duplicates='drop')
-    except ValueError:
-        bins = pd.cut(y_score, bins=n_bins)
-    df = pd.DataFrame({'y_true': y_true, 'y_score': y_score, 'bin': bins})
+    if score_is_probability and np.any((y_score < 0) | (y_score > 1)):
+        raise ValueError('Predicted probabilities must lie between zero and one')
     rows = []
-    for b, sub in df.groupby('bin'):
-        pred_mean = sub['y_score'].mean()
-        obs_rate = sub['y_true'].mean() if len(sub) > 0 else np.nan
-        rows.append((pred_mean, obs_rate))
+    if y_score.size:
+        try:
+            bins = pd.qcut(y_score, q=n_bins, duplicates='drop')
+        except ValueError:
+            bins = pd.cut(y_score, bins=n_bins)
+        if not len(bins.categories):
+            bins = pd.cut(y_score, bins=1)
+        df = pd.DataFrame({'y_true': y_true, 'y_score': y_score, 'bin': bins})
+        for _, sub in df.groupby('bin', observed=True):
+            rows.append((sub['y_score'].mean(), sub['y_true'].mean()))
     rows = sorted(rows, key=lambda t: t[0])
     preds = [r[0] for r in rows]
     obs   = [r[1] for r in rows]
     fig, ax = plt.subplots()
-    ax.plot([0,1],[0,1],'--', linewidth=1)
-    if len(preds) > 0:
-        mn, mx = min(preds), max(preds)
-        if not (0.0 <= mn and mx <= 1.0) and mx > mn:
-            preds_plot = [(p - mn) / (mx - mn) for p in preds]
-        else:
-            preds_plot = preds
-    else:
-        preds_plot = preds
-    ax.plot(preds_plot, obs, marker='o')
-    ax.set_xlabel('Predicted score (binned, rescaled if needed)')
+    if score_is_probability:
+        ax.plot([0,1],[0,1],'--', linewidth=1)
+    ax.plot(preds, obs, marker='o')
+    ax.set_xlabel('Predicted probability' if score_is_probability else 'Detection score (SNR)')
     ax.set_ylabel('Observed positive rate')
-    ax.set_title('Calibration Curve (SNR as score)')
+    ax.set_title('Calibration Curve' if score_is_probability else 'Positive fraction by SNR')
     fig.tight_layout()
-    fig.savefig(out_path, dpi=200)
+    apply_plot_theme(fig, typeplotback)
+    fig.savefig(out_path, dpi=200, facecolor=fig.get_facecolor())
     plt.close(fig)
 
 def uniform_edges(arr: np.ndarray, bins: int, log_scale: bool) -> np.ndarray:
@@ -149,7 +153,7 @@ def uniform_edges(arr: np.ndarray, bins: int, log_scale: bool) -> np.ndarray:
 
 def binned_metrics_uniform(y_true: np.ndarray, y_pred: np.ndarray, by: np.ndarray,
                            bins: int, log_scale: bool) -> pd.DataFrame:
-    mask = (~np.isnan(by)) & (~np.isnan(y_true)) & (~np.isnan(y_pred))
+    mask = np.isfinite(by) & np.isfinite(y_true) & np.isfinite(y_pred)
     y_true = y_true[mask]
     y_pred = y_pred[mask]
     s = by[mask].astype(float)
@@ -172,10 +176,7 @@ def binned_metrics_uniform(y_true: np.ndarray, y_pred: np.ndarray, by: np.ndarra
             continue
         yt = y_true[sel]
         yp = y_pred[sel]
-        tp = int(np.sum((yt == 1) & (yp == 1)))
-        tn = int(np.sum((yt == 0) & (yp == 0)))
-        fp = int(np.sum((yt == 0) & (yp == 1)))
-        fn = int(np.sum((yt == 1) & (yp == 0)))
+        tp, tn, fp, fn = confusion_counts(yt, yp)
         precision, recall, f1 = pr_from_conf(tp, fp, fn)
         rows.append({
             'bin': f'[{edges[k]:.6g}, {edges[k+1]:.6g})',
@@ -190,7 +191,7 @@ def binned_metrics_uniform(y_true: np.ndarray, y_pred: np.ndarray, by: np.ndarra
 def binned_metrics_2d_uniform(y_true: np.ndarray, y_pred: np.ndarray,
                               x: np.ndarray, y: np.ndarray, bins: int,
                               x_log: bool, y_log: bool) -> Dict[str, np.ndarray]:
-    mask = (~np.isnan(x)) & (~np.isnan(y)) & (~np.isnan(y_true)) & (~np.isnan(y_pred))
+    mask = np.isfinite(x) & np.isfinite(y) & np.isfinite(y_true) & np.isfinite(y_pred)
     x, y, y_true, y_pred = x[mask].astype(float), y[mask].astype(float), y_true[mask], y_pred[mask]
 
     x_edges = uniform_edges(x, bins, log_scale=x_log)
@@ -289,7 +290,7 @@ def corner_heatmap(params: Dict[str, np.ndarray],
                    bins: int, metric: str, out_path: str,
                    log_params: List[str], cell_inches: float,
                    snr: np.ndarray = None, stat: str = 'median',
-                   title_suffix: str = ""):
+                   title_suffix: str = "", typeplotback=None):
     """
     Lower-triangular corner plot.
     metric ∈ {'precision','recall','f1','snr'}.
@@ -362,7 +363,8 @@ def corner_heatmap(params: Dict[str, np.ndarray],
         fig.colorbar(mappable, cax=cax, label=cbar_label)
 
     fig.suptitle(f'Corner Heatmap — {metric.capitalize()}' + (f' — {title_suffix}' if title_suffix else ""))
-    fig.savefig(out_path, dpi=200)
+    apply_plot_theme(fig, typeplotback)
+    fig.savefig(out_path, dpi=200, facecolor=fig.get_facecolor())
     plt.close(fig)
 
 def main():
@@ -373,7 +375,9 @@ def main():
     ap.add_argument('--thr', type=float, default=3.70, help='Detection threshold applied to SNR')
     ap.add_argument('--bins', type=int, default=10, help='Number of bins for 1D/2D binning (same for x/y)')
     ap.add_argument('--corner_cell_inches', type=float, default=2.4, help='Size per corner panel (inches)')
+    ap.add_argument('--typeplotback', choices=('white', 'dark'), default='white')
     args = ap.parse_args()
+    configure_plot_style(args.typeplotback)
 
     ensure_out(args.out)
 

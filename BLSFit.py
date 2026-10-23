@@ -9,6 +9,7 @@ import os
 from scipy.signal import medfilt
 
 def BLSfit(flatlc):
+    """Return the existing BLS periodogram, propagating native fit failures."""
     # Perform Box Least Squares periodogram
     maxday = 10
     minday = 1
@@ -21,26 +22,28 @@ def BLSfit(flatlc):
     # pg = astropy.timeseries.BoxLeastSquares(flatlc['time'], flatlc['flux'])
     # results = pg.power(periods, durations)
     # print(len(np.array(periods)))
-    try:
-        pg = flatlc.to_periodogram(method='bls', period=np.array(periods), duration=np.array(durations), frequency_factor=5000)
-    except Exception as e:
-        return f"Error in BLS fit: {e}"
+    pg = flatlc.to_periodogram(method='bls', period=np.array(periods), duration=np.array(durations), frequency_factor=5000)
     # results = pg.flatten()
 
     # print("bls")
     # return results
     return pg
 
-def BLSResults(results, folder='', ID='', plot=''):
+def BLSResults(results, folder='', ID='', plot='', candidate_ephemerides=False, typeplotback='white'):
+    """Return peaks with best-fit or, optionally, candidate-aligned ephemerides."""
+
+    periods = np.array(results.period.value)
+    powers = np.array(results.power.value)
+    if periods.ndim != 1 or powers.ndim != 1 or periods.shape != powers.shape or periods.size == 0:
+        raise ValueError('BLS periods and powers must be nonempty aligned one-dimensional arrays')
+    if not np.isfinite(periods).all() or np.any(periods <= 0) or not np.isfinite(powers).all():
+        raise ValueError('BLS periods must be finite and positive, and powers must be finite')
 
     # Find the period with the highest power
     index = np.argmax(results.power)
     best_period = results.period[index]
     t0 = results.transit_time[index]
     duration = results.duration[index]
-
-    periods = np.array(results.period.value)
-    powers = np.array(results.power.value)
 
     # Detrend the periodogram
     ptrend = medfilt(powers, kernel_size=101)
@@ -51,26 +54,27 @@ def BLSResults(results, folder='', ID='', plot=''):
     sorted_indices = np.argsort(powers)[::-1]
     high_powers = [results.power[index].value]
     high_periods = [best_period.value]
+    candidate_indices = [index]
 
     # Proportional threshold
     lower_bound = 0.8  # Lower bound multiplier
     upper_bound = 1.2  # Upper bound multiplier
 
-    sorted_powers = powers[sorted_indices]
-    sorted_periods = periods[sorted_indices]
-
-    if plot!='':
-        for speriod, spower in zip(sorted_periods[1:], sorted_powers[1:]):
-            add_to_high = True
-            for hperiod in high_periods:
-                if lower_bound * hperiod <= speriod <= upper_bound * hperiod:
-                    add_to_high = False
-                    break
-            if add_to_high:
-                high_periods.append(speriod)
-                high_powers.append(spower)
-            if len(high_periods) >= 4:  # Stop after 4 clusters
+    for candidate_index in sorted_indices:
+        speriod = periods[candidate_index]
+        spower = powers[candidate_index]
+        add_to_high = True
+        for hperiod in high_periods:
+            if lower_bound * hperiod <= speriod <= upper_bound * hperiod:
+                add_to_high = False
                 break
+        if add_to_high:
+            high_periods.append(speriod)
+            high_powers.append(spower)
+            candidate_indices.append(candidate_index)
+        if len(high_periods) >= 4:  # Stop after 4 clusters
+            break
+    if plot!='':
         # Plot the BLS periodogram
         num_bins = 48
         bins = np.logspace(np.log10(1), np.log10(10), num_bins + 1)
@@ -87,6 +91,8 @@ def BLSResults(results, folder='', ID='', plot=''):
             # Extract values within the current bin
             bin_periods = periods[bin_mask]
             bin_powers = powers[bin_mask]
+            if bin_powers.size == 0:
+                continue
             
             # Calculate the 1.5 IQR range for outlier filtering
             q1, q3 = np.percentile(bin_powers, [25, 75])
@@ -124,14 +130,22 @@ def BLSResults(results, folder='', ID='', plot=''):
         plt.ylabel('Power')
         plt.legend()
         plt.title(f'BLS Periodogram for {ID}')
-        if plot=='save': plt.savefig(f'{folder}/{ID}_blsplot.png')
+        from tdpy.plotting import apply_plot_theme
+        figure = apply_plot_theme(plt.gcf(), typeplotback)
+        if plot=='save':
+            filename = f'{folder}/{ID}_blsplot.png'
+            print(f'Writing to {filename}...')
+            plt.savefig(filename, facecolor=figure.get_facecolor())
         if plot=='show': plt.show()
         plt.close('all')
 
+    if candidate_ephemerides:
+        t0 = results.transit_time[candidate_indices]
+        duration = results.duration[candidate_indices]
     return high_periods, high_powers, best_period, t0, duration
     
 
-def FoldedLC(flatlc, best_period, t0, plot='', ID='', folder='', bin = False, time_bin_size = 0.001, output = False):
+def FoldedLC(flatlc, best_period, t0, plot='', ID='', folder='', bin = False, time_bin_size = 0.001, output = False, typeplotback='white'):
 
     folded_lc = flatlc.fold(period=best_period, epoch_time = t0)
     try: period = best_period.value
@@ -140,7 +154,6 @@ def FoldedLC(flatlc, best_period, t0, plot='', ID='', folder='', bin = False, ti
     if bin:
         # binned_lc = folded_lc.bin(bins=bins)
         binned_lc = folded_lc.bin(time_bin_size=time_bin_size)
-        return binned_lc
     if plot!='': # Plot the folded light curve
         if bin: binned_lc.plot(label='Binned Data', color='red') 
         else: folded_lc.scatter()
@@ -148,9 +161,16 @@ def FoldedLC(flatlc, best_period, t0, plot='', ID='', folder='', bin = False, ti
         plt.ylabel('Normalized Flux')
         rounded_period = str(round(period, 3))
         plt.title(f'ID {ID} Folded Light Curve at Period = {rounded_period} days')
-        if plot=='save': plt.savefig(f'{folder}/{ID}_{rounded_period}_foldedlc.png')
+        from tdpy.plotting import apply_plot_theme
+        figure = apply_plot_theme(plt.gcf(), typeplotback)
+        if plot=='save':
+            filename = f'{folder}/{ID}_{rounded_period}_foldedlc.png'
+            print(f'Writing to {filename}...')
+            plt.savefig(filename, facecolor=figure.get_facecolor())
         if plot=='show': plt.show()
-    plt.close('all')
+    if plot!='' or not bin:
+        plt.close('all')
+    if bin: return binned_lc
     if output: return folded_lc
     return
 

@@ -6,6 +6,7 @@ from tqdm import tqdm
 from matplotlib import pyplot as plt
 from preprocess import preprocess
 from injections import inject_transit
+from injection_sampling import sample_power_law
 from BLSFit import BLSfit, BLSResults, FoldedLC
 from BLStests import test_depth, test_v_shape, test_snr, test_out_of_transit_variability
 import gc
@@ -17,19 +18,6 @@ noninj_output_file = 'data_outputs/noninjected_transits_output6.csv'
 
 G = 6.67e-11
 
-def sample_power_law(min_val, max_val, alpha, size=None):
-    """
-    Draw from PDF f(x) ∝ x^{-alpha}, on [min_val, max_val].
-    """
-    u = np.random.rand()
-    if alpha == 1.0:
-        # x = min * (max/min)^u
-        return min_val * (max_val / min_val) ** u
-    # Inverse CDF for alpha != 1
-    pow_ = 1.0 - alpha
-    a = min_val**pow_
-    b = max_val**pow_
-    return (a + (b - a) * u) ** (1.0 / pow_)
 def find_light_curve():
     print('kill me')
 
@@ -39,11 +27,11 @@ def fit_fold_and_test(lc, folder, output_file, Injected=False):
     print(f"Fitting and testing light curve for {'injected' if Injected else 'non-injected'} data...")
     results = BLSfit(lc)
     print(f"Results: {results}")
-    high_periods, high_powers, best_period, t0, duration = BLSResults(results, plot='save', folder=folder, ID=ID)
+    high_periods, high_powers, best_period, epochs, durations = BLSResults(results, plot='save', folder=folder, ID=ID, candidate_ephemerides=True)
     plt.close('all')
 
     rows = []
-    for period in high_periods:
+    for period, t0, duration in zip(high_periods, epochs, durations):
         folded_lc = FoldedLC(lc, period, t0, ID=ID, plot='', folder=folder, bin=True, time_bin_size=0.001, output=True)
         transit_mask = np.abs(folded_lc['time'].value) < 0.6 * duration.value
 

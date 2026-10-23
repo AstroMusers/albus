@@ -12,13 +12,16 @@ from BLStests import test_period, test_duration, test_depth, test_v_shape, test_
 df = pd.read_csv('tess_targets_data.csv')
 output_file = '/Users/aavikwadivkar/Documents/Exoplanets/Ampersand/albus/albus/data_outputs/noninjected_transits_output1.csv'
 out = pd.read_csv(output_file)
+completed_ids = set(out['ID'])
 lc = None
 
 for i in tqdm(range(5)):
-    rand = random.randint(1, 1291)
-    ID = int(df['Target ID'][rand])
+    if df.empty:
+        break
+    rand = random.randrange(len(df))
+    ID = int(df['Target ID'].iloc[rand])
     print(ID)
-    if int(ID) not in out['ID'].values:  # Ensure check is against column values
+    if ID not in completed_ids:
         lc = None  # Reset lc to None at the start of the iteration
         
         tic_id = ID
@@ -28,20 +31,16 @@ for i in tqdm(range(5)):
         if lc is not None:
             # Run BLS
             results = BLSfit(lc)
-            high_periods, high_powers, best_period, t0, duration = BLSResults(results, folder='WD_Plots6/Noninjections', ID=ID)
-            for period in high_periods:
+            high_periods, high_powers, best_period, epochs, durations = BLSResults(results, folder='WD_Plots6/Noninjections', ID=ID, candidate_ephemerides=True)
+            for period, t0, duration in zip(high_periods, epochs, durations):
                 FoldedLC(lc, period, t0, ID=ID, folder='WD_Plots6/Noninjections', bin=False)                
                 # Run tests
-                depth = test_depth(lc['time'],
-                                lc['flux'],
-                                create_transit_mask_manual(lc['time'], period, t0, duration
-                                ))
-                vshape = test_v_shape(lc['time'],
-                                    lc['flux'],
-                                    create_transit_mask_manual(lc['time'], period, t0, duration
-                                    ))
-                snr = test_snr(lc['flux'], create_transit_mask_manual(lc['time'], period, t0, duration))
-                oot_variability = test_out_of_transit_variability(lc['flux'], create_transit_mask_manual(lc['time'], period, t0, duration))
+                transit_mask = create_transit_mask_manual(lc['time'], period, t0, duration)
+                depth = test_depth(lc['time'], lc['flux'], transit_mask)
+                vshape = test_v_shape(lc['time'], lc['flux'], transit_mask)
+                snr = test_snr(lc['flux'], transit_mask)
+                oot_variability = test_out_of_transit_variability(lc['flux'], transit_mask)
 
                 BLSTestOutputs(ID, tic_id, period, duration, depth, vshape, snr, oot_variability, output_file)
-        print('outputted')
+            completed_ids.add(ID)
+            print('outputted')

@@ -23,46 +23,26 @@ from typing import Dict, Tuple, List
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from matplotlib.ticker import MaxNLocator
+from tdpy.plotting import apply_plot_theme, configure_plot_style
+
+if __package__:
+    from .recallplots import (
+        basic_line_plot, binned_metrics_2d_uniform, binned_metrics_uniform,
+        calibration_curve_plot, confusion_counts, confusion_matrix_plot,
+        f1_score, pr_from_conf, uniform_edges,
+    )
+else:
+    from recallplots import (
+        basic_line_plot, binned_metrics_2d_uniform, binned_metrics_uniform,
+        calibration_curve_plot, confusion_counts, confusion_matrix_plot,
+        f1_score, pr_from_conf, uniform_edges,
+    )
 
 def ensure_out(out_dir: str):
     os.makedirs(out_dir, exist_ok=True)
 
-def confusion_counts(y_true: np.ndarray, y_pred: np.ndarray) -> Tuple[int,int,int,int]:
-    tp = int(np.sum((y_true == 1) & (y_pred == 1)))
-    tn = int(np.sum((y_true == 0) & (y_pred == 0)))
-    fp = int(np.sum((y_true == 0) & (y_pred == 1)))
-    fn = int(np.sum((y_true == 1) & (y_pred == 0)))
-    return tp, tn, fp, fn
-
-def f1_score(precision: float, recall: float) -> float:
-    if precision + recall == 0:
-        return 0.0
-    return 2 * precision * recall / (precision + recall)
-
-def pr_from_conf(tp: int, fp: int, fn: int) -> Tuple[float,float,float]:
-    precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
-    recall    = tp / (tp + fn) if (tp + fn) > 0 else 0.0
-    f1        = f1_score(precision, recall)
-    return precision, recall, f1
-
-def basic_line_plot(x, y, xlabel, ylabel, title, out_path, x_log=False):
-    plt.figure()
-    plt.plot(x, y, marker='o')
-    if x_log:
-        xmin = np.nanmin(np.array(x)[np.array(x) > 0]) if np.any(np.array(x) > 0) else 1.0
-        plt.xscale('log')
-        plt.xlim(left=xmin*0.95)
-    plt.gca().xaxis.set_major_locator(MaxNLocator(nbins=8))
-    plt.xlabel(xlabel)
-    plt.ylabel(ylabel)
-    plt.title(title)
-    plt.tight_layout()
-    plt.savefig(out_path, dpi=200)
-    plt.close()
-
 def basic_heatmap(Z, x_edges, y_edges, xlabel, ylabel, title, out_path,
-                  x_log=False, y_log=False, vmin=0.0, vmax=1.0):
+                  x_log=False, y_log=False, vmin=0.0, vmax=1.0, typeplotback=None):
     fig, ax = plt.subplots()
     X, Y = np.meshgrid(x_edges, y_edges)
     im = ax.pcolormesh(X, Y, Z, shading='auto', vmin=vmin, vmax=vmax)
@@ -78,161 +58,14 @@ def basic_heatmap(Z, x_edges, y_edges, xlabel, ylabel, title, out_path,
     # Make cells visually square
     ax.set_aspect('equal', adjustable='box')
     fig.tight_layout()
-    fig.savefig(out_path, dpi=200)
+    apply_plot_theme(fig, typeplotback)
+    fig.savefig(out_path, dpi=200, facecolor=fig.get_facecolor())
     plt.close(fig)
-
-def confusion_matrix_plot(tp, tn, fp, fn, out_path):
-    plt.figure()
-    M = np.array([[tp, fp],
-                  [fn, tn]])
-    plt.imshow(M, aspect='equal')
-    plt.xticks([0,1], ['Pred:1', 'Pred:0'])
-    plt.yticks([0,1], ['True:1', 'True:0'])
-    for (i, j), val in np.ndenumerate(M):
-        plt.text(j, i, str(val), ha='center', va='center')
-    plt.title('Confusion Matrix')
-    plt.tight_layout()
-    plt.savefig(out_path, dpi=200)
-    plt.close()
-
-def calibration_curve_plot(y_true, y_score, n_bins, out_path):
-    mask = (~np.isnan(y_true)) & (~np.isnan(y_score))
-    y_true = y_true[mask]
-    y_score = y_score[mask]
-    try:
-        bins = pd.qcut(y_score, q=n_bins, duplicates='drop')
-    except ValueError:
-        bins = pd.cut(y_score, bins=n_bins)
-    df = pd.DataFrame({'y_true': y_true, 'y_score': y_score, 'bin': bins})
-    rows = []
-    for b, sub in df.groupby('bin'):
-        pred_mean = sub['y_score'].mean()
-        obs_rate = sub['y_true'].mean() if len(sub) > 0 else np.nan
-        rows.append((pred_mean, obs_rate))
-    rows = sorted(rows, key=lambda t: t[0])
-    preds = [r[0] for r in rows]
-    obs   = [r[1] for r in rows]
-    fig, ax = plt.subplots()
-    ax.plot([0,1],[0,1],'--', linewidth=1)
-    if len(preds) > 0:
-        mn, mx = min(preds), max(preds)
-        if not (0.0 <= mn and mx <= 1.0) and mx > mn:
-            preds_plot = [(p - mn) / (mx - mn) for p in preds]
-        else:
-            preds_plot = preds
-    else:
-        preds_plot = preds
-    ax.plot(preds_plot, obs, marker='o')
-    ax.set_xlabel('Predicted score (binned, rescaled if needed)')
-    ax.set_ylabel('Observed positive rate')
-    ax.set_title('Calibration Curve (SNR as score)')
-    fig.tight_layout()
-    fig.savefig(out_path, dpi=200)
-    plt.close(fig)
-
-def uniform_edges(arr: np.ndarray, bins: int, log_scale: bool) -> np.ndarray:
-    arr = arr[np.isfinite(arr)]
-    if arr.size == 0:
-        return np.array([0.0, 1.0])
-    mn, mx = float(np.nanmin(arr)), float(np.nanmax(arr))
-    if mx == mn:
-        return np.array([mn, mx + (1e-9 if mx == 0 else abs(mx)*1e-9)])
-    if log_scale and mn > 0 and mx > 0:
-        return np.logspace(np.log10(mn), np.log10(mx), bins + 1)
-    else:
-        return np.linspace(mn, mx, bins + 1)
-
-def binned_metrics_uniform(y_true: np.ndarray, y_pred: np.ndarray, by: np.ndarray,
-                           bins: int, log_scale: bool) -> pd.DataFrame:
-    mask = (~np.isnan(by)) & (~np.isnan(y_true)) & (~np.isnan(y_pred))
-    y_true = y_true[mask]
-    y_pred = y_pred[mask]
-    s = by[mask].astype(float)
-
-    edges = uniform_edges(s, bins, log_scale=log_scale)
-    idx = np.digitize(s, edges) - 1
-    idx = np.clip(idx, 0, len(edges)-2)
-
-    rows = []
-    for k in range(len(edges)-1):
-        sel = (idx == k)
-        center = 10**((np.log10(edges[k]) + np.log10(edges[k+1]))/2.0) if log_scale and edges[k]>0 and edges[k+1]>0 else (edges[k] + edges[k+1]) / 2.0
-        if not np.any(sel):
-            rows.append({
-                'bin': f'[{edges[k]:.6g}, {edges[k+1]:.6g})',
-                'center': center,
-                'count': 0, 'tp': 0, 'tn': 0, 'fp': 0, 'fn': 0,
-                'precision': 0.0, 'recall': 0.0, 'f1': 0.0
-            })
-            continue
-        yt = y_true[sel]
-        yp = y_pred[sel]
-        tp = int(np.sum((yt == 1) & (yp == 1)))
-        tn = int(np.sum((yt == 0) & (yp == 0)))
-        fp = int(np.sum((yt == 0) & (yp == 1)))
-        fn = int(np.sum((yt == 1) & (yp == 0)))
-        precision, recall, f1 = pr_from_conf(tp, fp, fn)
-        rows.append({
-            'bin': f'[{edges[k]:.6g}, {edges[k+1]:.6g})',
-            'center': center,
-            'count': int(np.sum(sel)),
-            'tp': tp, 'tn': tn, 'fp': fp, 'fn': fn,
-            'precision': precision, 'recall': recall, 'f1': f1
-        })
-    out = pd.DataFrame(rows)
-    return out.sort_values('center').reset_index(drop=True)
-
-def binned_metrics_2d_uniform(y_true: np.ndarray, y_pred: np.ndarray,
-                              x: np.ndarray, y: np.ndarray, bins: int,
-                              x_log: bool, y_log: bool) -> Dict[str, np.ndarray]:
-    mask = (~np.isnan(x)) & (~np.isnan(y)) & (~np.isnan(y_true)) & (~np.isnan(y_pred))
-    x, y, y_true, y_pred = x[mask].astype(float), y[mask].astype(float), y_true[mask], y_pred[mask]
-
-    x_edges = uniform_edges(x, bins, log_scale=x_log)
-    y_edges = uniform_edges(y, bins, log_scale=y_log)
-
-    xi = np.digitize(x, x_edges) - 1
-    yi = np.digitize(y, y_edges) - 1
-    xi = np.clip(xi, 0, len(x_edges)-2)
-    yi = np.clip(yi, 0, len(y_edges)-2)
-
-    H = len(y_edges)-1
-    W = len(x_edges)-1
-    TP = np.zeros((H, W), dtype=int)
-    TN = np.zeros_like(TP)
-    FP = np.zeros_like(TP)
-    FN = np.zeros_like(TP)
-    for i in range(len(xi)):
-        r, c = yi[i], xi[i]
-        yt, yp = y_true[i], y_pred[i]
-        if yt == 1 and yp == 1: TP[r, c] += 1
-        elif yt == 0 and yp == 0: TN[r, c] += 1
-        elif yt == 0 and yp == 1: FP[r, c] += 1
-        elif yt == 1 and yp == 0: FN[r, c] += 1
-
-    def safe_div(a, b):
-        out = np.zeros_like(a, dtype=float)
-        nz = b != 0
-        out[nz] = a[nz] / b[nz]
-        return out
-    precision = safe_div(TP, TP + FP)
-    recall    = safe_div(TP, TP + FN)
-    with np.errstate(invalid='ignore'):
-        f1 = np.where((precision + recall) > 0, 2 * precision * recall / (precision + recall), 0.0)
-
-    return {
-        'precision': precision,
-        'recall': recall,
-        'f1': f1,
-        'x_edges': x_edges,
-        'y_edges': y_edges,
-        'TP': TP, 'TN': TN, 'FP': FP, 'FN': FN,
-    }
 
 def corner_heatmap(params: Dict[str, np.ndarray],
                    y_true: np.ndarray, y_pred: np.ndarray,
                    bins: int, metric: str, out_path: str,
-                   log_params: List[str] = None):
+                   log_params: List[str] = None, typeplotback=None):
     if log_params is None:
         log_params = []
     names = list(params.keys())
@@ -288,7 +121,8 @@ def corner_heatmap(params: Dict[str, np.ndarray],
 
     fig.suptitle(f'Corner Heatmap — {metric.capitalize()}', y=0.995)
     plt.tight_layout(rect=[0.02, 0.02, 0.90, 0.97])
-    plt.savefig(out_path, dpi=200)
+    apply_plot_theme(fig, typeplotback)
+    plt.savefig(out_path, dpi=200, facecolor=fig.get_facecolor())
     plt.close(fig)
 
 def main():
@@ -298,7 +132,9 @@ def main():
     ap.add_argument('--out', required=True, help='Output directory')
     ap.add_argument('--thr', type=float, default=3.70, help='Detection threshold applied to SNR')
     ap.add_argument('--bins', type=int, default=10, help='Number of bins for 1D/2D binning (same for x/y)')
+    ap.add_argument('--typeplotback', choices=('white', 'dark'), default='white')
     args = ap.parse_args()
+    configure_plot_style(args.typeplotback)
 
     ensure_out(args.out)
 
@@ -420,7 +256,8 @@ def main():
         plt.ylabel('Count')
         plt.title(title)
         plt.tight_layout()
-        plt.savefig(out_path, dpi=200)
+        figure = apply_plot_theme(plt.gcf())
+        plt.savefig(out_path, dpi=200, facecolor=figure.get_facecolor())
         plt.close()
 
     for pname, arr in params_1d.items():

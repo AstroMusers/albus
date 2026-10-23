@@ -11,6 +11,8 @@ import csv, os, json, time, random
 import numpy as np
 from math import isfinite
 from collections import Counter
+from catalog_values import finite_or_none as _finite_or_none, CatalogQueryError
+from progress_io import load_progress_json, save_progress_json, read_catalog_csv_keys, append_catalog_row, is_completed_record
 
 # ----------------- Config -----------------
 INPUT_FITS = 'gaiaedr3_wd_main.fits'
@@ -36,22 +38,10 @@ SAVE_EVERY = 200         # save JSON after every N completions (1 = every result
 
 # -------- safe load/save progress ----------
 def load_json(path, default):
-    if not os.path.exists(path): return default
-    try:
-        with open(path, 'r') as f:
-            s = f.read().strip()
-            return json.loads(s) if s else default
-    except Exception:
-        ts = time.strftime('%Y%m%d-%H%M%S'); os.replace(path, f"{path}.bad-{ts}")
-        return default
+    return load_progress_json(path, default)
 
 def save_json(path, obj):
-    tmp = path + '.tmp'
-    with open(tmp, 'w') as f:
-        json.dump(obj, f, indent=2)
-        f.flush()
-        os.fsync(f.fileno())
-    os.replace(tmp, path)
+    return save_progress_json(path, obj)
 
 # --------------- backoff ------------------
 def backoff_sleep(attempt):
@@ -62,13 +52,6 @@ sem_tic = Semaphore(TIC_MAX)
 sem_lc  = Semaphore(LC_MAX)
 
 # --------------- helpers ------------------
-def _finite_or_none(x):
-    try:
-        xv = float(x)
-        return xv if np.isfinite(xv) else None
-    except Exception:
-        return None
-
 def key_ra6dec6_from_vals(ra, dec):
     return f"{float(ra):.6f},{float(dec):.6f}"
 
@@ -77,29 +60,7 @@ def key_ra6dec6_from_row(row):
 
 def load_csv_seen(csv_path):
     """Return (seen_radec6: set[str], seen_tic: set[str]) from a CSV, tolerating whitespace headers."""
-    seen_radec6, seen_tic = set(), set()
-    if not os.path.exists(csv_path):
-        return seen_radec6, seen_tic
-    with open(csv_path, 'r', newline='') as f:
-        import csv as _csv
-        reader = _csv.DictReader(f)
-        # normalize headers
-        fieldmap = {k: k.strip() for k in reader.fieldnames}
-        for raw in reader:
-            row = {fieldmap.get(k, k): v for k, v in raw.items()}
-            ra_s, dec_s = (row.get('ra_deg'), row.get('dec_deg'))
-            tic = row.get('tic_id')
-            try:
-                if ra_s is not None and dec_s is not None:
-                    ra = float(str(ra_s).strip()); dec = float(str(dec_s).strip())
-                    seen_radec6.add(f"{ra:.6f},{dec:.6f}")
-            except Exception:
-                pass
-            if tic is not None:
-                tics = str(tic).strip()
-                if tics and tics.lower() not in ('none','nan'):
-                    seen_tic.add(tics)
-    return seen_radec6, seen_tic
+    return read_catalog_csv_keys(csv_path)
 
 
 def get_tic_match(ra_deg, dec_deg):
@@ -110,6 +71,7 @@ def get_tic_match(ra_deg, dec_deg):
     """
     coord = SkyCoord(ra=ra_deg*u.deg, dec=dec_deg*u.deg)
     radii = [RADIUS_ARCSEC, 1.0, 4.0]  # try nominal, tighter, then looser
+    last_error = None
     for attempt in range(RETRIES):
         try:
             for r in radii:
@@ -136,9 +98,13 @@ def get_tic_match(ra_deg, dec_deg):
                 # else nearest anyway
                 j = int(order[0])
                 return res[j].get('ID', None), _finite_or_none(res[j].get('Tmag', None))
-        except Exception:
+            last_error = None
+        except Exception as error:
+            last_error = error
             backoff_sleep(attempt)
     # exhausted
+    if last_error is not None:
+        raise CatalogQueryError(f'TIC request failed after {RETRIES} attempts') from last_error
     return None, None
 
 def has_tess_lightcurve(tic_id=None, ra_deg=None, dec_deg=None):
@@ -148,6 +114,7 @@ def has_tess_lightcurve(tic_id=None, ra_deg=None, dec_deg=None):
     2) 'TIC <id>'
     3) coordinate fallback within RADIUS_ARCSEC
     """
+    last_error = None
     for attempt in range(RETRIES):
         try:
             if tic_id:
@@ -177,8 +144,11 @@ def has_tess_lightcurve(tic_id=None, ra_deg=None, dec_deg=None):
                     dataproduct_type="timeseries",
                 )
             return (obs is not None) and (len(obs) > 0)
-        except Exception:
+        except Exception as error:
+            last_error = error
             backoff_sleep(attempt)
+    if last_error is not None:
+        raise CatalogQueryError(f'TESS request failed after {RETRIES} attempts') from last_error
     return False
 
 # --------------- main ---------------------
@@ -194,7 +164,7 @@ if __name__ == "__main__":
 
     # Load progress & make skip set
     progress_log = load_json(LOG_FILE, {})
-    done_keys = set(progress_log.keys())  # these should already be 6-dp strings in your JSON
+    done_keys = {key for key, entry in progress_log.items() if is_completed_record(entry)}
 
 
     # Ensure CSVs exist with headers
@@ -215,36 +185,28 @@ if __name__ == "__main__":
     seen_csv_tic    = seen_b_tic    | seen_f_tic
 
     # Build worklist
-    work = []
     key_to_row = {}
     for cand in pre_cut:
         k = make_key(cand)  # 6-dp
         key_to_row[k] = cand
-        if k in done_keys or k in seen_csv_radec6:
-            continue
-        work.append(k)
+    work = [k for k in key_to_row if k not in done_keys and k not in seen_csv_radec6]
 
     print(f"To process this run: {len(work)} rows (skipping {len(done_keys)} already logged)")
 
     # CSV append helpers (main thread only)
     def append_csv(category, ra_val, dec_val, tic_id, tmag):
-        # Always write 6-dp to match legacy files and avoid future duplicates
-        ra6 = f"{float(ra_val):.6f}"
-        dec6 = f"{float(dec_val):.6f}"
-        rkey = f"{ra6},{dec6}"
-
         if category == 'bright_lc':
-            if rkey in seen_b_radec6:  # already present, skip writing
-                return
-            with open(CSV_BRIGHT_LC, 'a', newline='') as f:
-                csv.writer(f).writerow([ra_val, dec_val, tic_id, tmag])
-            seen_b_radec6.add(rkey)
+            append_catalog_row(CSV_BRIGHT_LC, ra_val, dec_val, tic_id, tmag, seen_b_radec6)
         elif category == 'faint_lc':
-            if rkey in seen_f_radec6:
-                return
-            with open(CSV_FAINT_LC, 'a', newline='') as f:
-                csv.writer(f).writerow([ra_val, dec_val, tic_id, tmag])
-            seen_f_radec6.add(rkey)
+            append_catalog_row(CSV_FAINT_LC, ra_val, dec_val, tic_id, tmag, seen_f_radec6)
+
+    for key, entry in progress_log.items():
+        category = entry.get('category')
+        magnitude = _finite_or_none(entry.get('Tmag'))
+        if is_completed_record(entry) and category in ('bright_lc', 'faint_lc') and key in key_to_row:
+            if entry.get('tic_id') is not None and magnitude is not None:
+                row = key_to_row[key]
+                append_csv(category, row['ra'], row['dec'], entry['tic_id'], magnitude)
 
     # One-shot worker: TIC + LC together
     def process_one(k):
@@ -280,15 +242,15 @@ if __name__ == "__main__":
                 # don’t log; leaving it out means it will be retried on next run
                 continue
 
-            if k in progress_log:
+            if is_completed_record(progress_log.get(k)):
                 continue  # another run may have completed it already
 
             # Persist JSON (checkpoint)
             if category == 'no_tic_or_tmag':
-                progress_log[k] = {'status': 'done', 'category': category, 'tic_id': None, 'Tmag': None}
+                progress_log[k] = {**progress_log.get(k, {}), 'status': 'done', 'category': category, 'tic_id': None, 'Tmag': None}
                 diag['no_tic_or_tmag'] += 1
             else:
-                progress_log[k] = {'status': 'done', 'category': category, 'tic_id': tic_id, 'Tmag': tmag}
+                progress_log[k] = {**progress_log.get(k, {}), 'status': 'done', 'category': category, 'tic_id': tic_id, 'Tmag': tmag}
                 if category == 'bright_lc': diag['bright_lc'] += 1
                 elif category == 'faint_lc': diag['faint_lc'] += 1
                 else: diag['no_lc'] += 1
@@ -309,19 +271,21 @@ if __name__ == "__main__":
     # Rebuild FITS from full log so outputs reflect cumulative total
     def build_subset(cat):
         return [key_to_row[k] for k, e in progress_log.items()
-                if e.get('status') == 'done' and e.get('category') == cat and k in key_to_row]
+                if is_completed_record(e) and e.get('category') == cat and k in key_to_row]
 
     bright_full = build_subset('bright_lc')
     faint_full  = build_subset('faint_lc')
 
     if len(bright_full) > 0:
-        Table(bright_full, names=names).write(FITS_BRIGHT_LC, overwrite=True)
+        print(f'Writing to {FITS_BRIGHT_LC}...')
+        Table(rows=bright_full, names=names).write(FITS_BRIGHT_LC, overwrite=True)
         print(f"Wrote {len(bright_full)} rows to {FITS_BRIGHT_LC}")
     else:
         print("No BRIGHT (Tmag < 16) stars with TESS lightcurves yet.")
 
     if len(faint_full) > 0:
-        Table(faint_full, names=names).write(FITS_FAINT_LC, overwrite=True)
+        print(f'Writing to {FITS_FAINT_LC}...')
+        Table(rows=faint_full, names=names).write(FITS_FAINT_LC, overwrite=True)
         print(f"Wrote {len(faint_full)} rows to {FITS_FAINT_LC}")
     else:
         print("No FAINT (Tmag ≥ 16) stars with TESS lightcurves yet.")
