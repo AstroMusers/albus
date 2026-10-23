@@ -7,6 +7,7 @@ from tqdm import tqdm
 import astropy
 import os
 from scipy.signal import medfilt
+from tdpy.verbosity import print
 
 def BLSfit(flatlc):
     """Return the existing BLS periodogram, propagating native fit failures."""
@@ -175,6 +176,7 @@ def FoldedLC(flatlc, best_period, t0, plot='', ID='', folder='', bin = False, ti
     return
 
 def BLSOutput(ID, tic_id, high_periods, high_powers, output_file):
+    print(f'Writing to {output_file}...')
     with open(output_file, 'a', newline='') as f:
         writer = csv.writer(f)
         # writer.writerow(['ID', 'TIC ID', 'Periods', 'Powers'])
@@ -182,6 +184,7 @@ def BLSOutput(ID, tic_id, high_periods, high_powers, output_file):
         f.close()
 
 def BLSTestOutputs(ID, tic_id, period, duration, depth, vshape, snr, oot_variability, output_file):
+    print(f'Writing to {output_file}...')
     with open(output_file, 'a', newline='') as f:
         writer = csv.writer(f)
         # writer.writerow(['ID', 'TIC ID', 'Period', 'Duration', 'Depth', 'V-Shape', 'SNR', 'OOT Variability'])

@@ -63,6 +63,36 @@ def test_synthetic_bls_notebook_calls_pipeline_and_keeps_paths_private():
     assert '/' + 'Users/' not in interactive_html
 
 
+def test_bls_file_messages_use_tdpy_verbosity(monkeypatch, capsys):
+    import BLSFit
+    from tdpy.verbosity import print as verbosity_print
+
+    assert BLSFit.print is verbosity_print
+    monkeypatch.setenv('TDPY_VERBOSITY', '0')
+    BLSFit.print('quiet by default')
+    assert capsys.readouterr().out == ''
+
+    monkeypatch.setenv('TDPY_VERBOSITY', '1')
+    BLSFit.print('visible when enabled')
+    assert capsys.readouterr().out == 'visible when enabled\n'
+
+
+def test_bls_csv_writers_log_output_paths_when_verbose(tmp_path, monkeypatch, capsys):
+    from BLSFit import BLSOutput, BLSTestOutputs
+
+    monkeypatch.setenv('TDPY_VERBOSITY', '1')
+    candidate_path = tmp_path / 'candidates.csv'
+    metrics_path = tmp_path / 'metrics.csv'
+    BLSOutput('target', 42, [3.4], [0.8], candidate_path)
+    BLSTestOutputs('target', 42, 3.4, 0.1, 0.01, False, 12.0, 0.001, metrics_path)
+
+    output = capsys.readouterr().out
+    assert f'Writing to {candidate_path}...' in output
+    assert f'Writing to {metrics_path}...' in output
+    assert candidate_path.read_text().startswith('target,42,')
+    assert metrics_path.read_text().startswith('target,42,')
+
+
 @pytest.fixture
 def sampler(monkeypatch):
     monkeypatch.syspath_prepend(str(ROOT))
