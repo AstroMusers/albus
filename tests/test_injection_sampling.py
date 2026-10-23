@@ -48,11 +48,19 @@ def test_synthetic_bls_notebook_calls_pipeline_and_keeps_paths_private():
     assert 'BLSResults(' in code
     assert 'FoldedLC(' in code
     assert 'repository_root / "examples" / "visuals"' in code
+    assert 'from bokeh.layouts import column' in code
+    assert 'albus_synthetic_bls_interactive.html' in code
     assert 'not a planet detection' in document
     assert '/' + 'Users/' not in document
     outputs = [output for cell in notebook['cells'] for output in cell.get('outputs', [])]
     assert sum('image/png' in output.get('data', {}) for output in outputs) == 2
     assert 'fractional_period_error' in code
+    interactive_path = ROOT / 'examples' / 'visuals' / 'albus_synthetic_bls_interactive.html'
+    print(f'Reading from {interactive_path.relative_to(ROOT)}...')
+    interactive_html = interactive_path.read_text(encoding='utf-8')
+    assert 'Synthetic BLS periodogram' in interactive_html
+    assert 'Folded synthetic light curve' in interactive_html
+    assert '/' + 'Users/' not in interactive_html
 
 
 @pytest.fixture

@@ -12,6 +12,7 @@ saves the periodogram and folded curve under `examples/visuals/`. Run it with a
 Python environment that includes Lightkurve and TDpy. The recovered period
 illustrates the pipeline on known synthetic input; it is not a planet detection
 or a survey-completeness result.
+The notebook also writes a [self-contained interactive Bokeh view](examples/visuals/albus_synthetic_bls_interactive.html) of the periodogram and folded curve. Bokeh is an additional notebook dependency.
 
 With a 3.4-day injected period and the notebook's fixed random seed, this run
 returns 3.40024 days. That value describes the toy example only.
