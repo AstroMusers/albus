@@ -32,6 +32,25 @@ from scipy.signal import medfilt
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def test_synthetic_bls_notebook_calls_pipeline_and_keeps_paths_private():
+    path = ROOT / 'examples' / 'synthetic_bls_pipeline.ipynb'
+    print('Reading from examples/synthetic_bls_pipeline.ipynb...')
+    notebook = json.loads(path.read_text(encoding='utf-8'))
+    code = '\n'.join(
+        ''.join(cell['source'])
+        for cell in notebook['cells']
+        if cell['cell_type'] == 'code'
+    )
+    document = json.dumps(notebook)
+
+    assert 'from BLSFit import BLSfit, BLSResults, FoldedLC' in code
+    assert 'BLSfit(light_curve)' in code
+    assert 'BLSResults(' in code
+    assert 'FoldedLC(' in code
+    assert 'not a planet detection' in document
+    assert '/' + 'Users/' not in document
+
+
 @pytest.fixture
 def sampler(monkeypatch):
     monkeypatch.syspath_prepend(str(ROOT))

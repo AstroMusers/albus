@@ -4,6 +4,15 @@
 # albus
 Could a planet passing in front of a white dwarf leave a recognizable dip in its light curve? Albus gives us a place to test that question with simulated transit injections and light-curve analysis using [Astropy](https://github.com/astropy/astropy), [batman](https://github.com/lkreidberg/batman), and [Lightkurve](https://github.com/lightkurve/lightkurve). The pipeline is still under active development.
 
+## Synthetic BLS example
+
+The [synthetic BLS notebook](examples/synthetic_bls_pipeline.ipynb) sends a
+seeded toy transit through `BLSfit()`, `BLSResults()`, and `FoldedLC()`, then
+saves the periodogram and folded curve under `visuals/`. Run it with a Python
+environment that includes Lightkurve and TDpy. The recovered period illustrates
+the pipeline on known synthetic input; it is not a planet detection or a survey
+completeness result.
+
 Our `paths.py` module reads `ALBUS_PATH`, which defaults to this checkout. It exposes local `data/` and `visuals/` directories. Git ignores both.
 
 We draw planet radii for injections with a shared bounded power-law sampler.
