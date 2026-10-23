@@ -13,6 +13,9 @@ environment that includes Lightkurve and TDpy. The recovered period illustrates
 the pipeline on known synthetic input; it is not a planet detection or a survey
 completeness result.
 
+With a 3.4-day injected period and the notebook's fixed random seed, this run
+returns 3.40024 days. That value describes the toy example only.
+
 Our `paths.py` module reads `ALBUS_PATH`, which defaults to this checkout. It exposes local `data/` and `visuals/` directories. Git ignores both.
 
 We draw planet radii for injections with a shared bounded power-law sampler.
