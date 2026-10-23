@@ -8,10 +8,10 @@ Could a planet passing in front of a white dwarf leave a recognizable dip in its
 
 The [synthetic BLS notebook](examples/synthetic_bls_pipeline.ipynb) sends a
 seeded toy transit through `BLSfit()`, `BLSResults()`, and `FoldedLC()`, then
-saves the periodogram and folded curve under `visuals/`. Run it with a Python
-environment that includes Lightkurve and TDpy. The recovered period illustrates
-the pipeline on known synthetic input; it is not a planet detection or a survey
-completeness result.
+saves the periodogram and folded curve under `examples/visuals/`. Run it with a
+Python environment that includes Lightkurve and TDpy. The recovered period
+illustrates the pipeline on known synthetic input; it is not a planet detection
+or a survey-completeness result.
 
 With a 3.4-day injected period and the notebook's fixed random seed, this run
 returns 3.40024 days. That value describes the toy example only.

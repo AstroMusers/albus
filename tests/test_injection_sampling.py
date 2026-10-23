@@ -47,6 +47,7 @@ def test_synthetic_bls_notebook_calls_pipeline_and_keeps_paths_private():
     assert 'BLSfit(light_curve)' in code
     assert 'BLSResults(' in code
     assert 'FoldedLC(' in code
+    assert 'repository_root / "examples" / "visuals"' in code
     assert 'not a planet detection' in document
     assert '/' + 'Users/' not in document
     outputs = [output for cell in notebook['cells'] for output in cell.get('outputs', [])]
