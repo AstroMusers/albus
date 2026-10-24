@@ -4,6 +4,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 from scipy.ndimage import gaussian_filter
+from tdpy.verbosity import print
 
 # --------------------- User-tweakable parameters ---------------------
 input_csv = 'data_outputs/injected_transits_output6.csv'
@@ -15,6 +16,7 @@ count_threshold = 0      # minimum counts per 2D bin to consider valid (for mask
 
 # Load or create demo data
 if os.path.exists(input_csv):
+    print(f"Reading from {input_csv}...")
     df = pd.read_csv(input_csv)
     print(f"Loaded file: {input_csv}  (rows: {len(df)})")
 else:
@@ -173,7 +175,9 @@ cbar3.set_label('Average SNR (log scale)')
 
 plt.suptitle('SNR vs Parameters — 1D and 2D summaries', fontsize=16, y=0.98)
 plt.tight_layout(rect=[0,0,1,0.96])
-plt.savefig('data_outputs/run6analysis/snr_vs_parameters_smooth_summary6.png', dpi=300)
+output_path = 'data_outputs/run6analysis/snr_vs_parameters_smooth_summary6.png'
+print(f"Writing to {output_path}...")
+plt.savefig(output_path, dpi=300)
 # plt.show()
 
 print('Done: single figure with 6 subplots generated. Adjust input_csv, n_bins_1d, n_bins_2d, sigma as needed.')
