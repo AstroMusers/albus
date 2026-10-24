@@ -24,6 +24,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from tdpy.plotting import apply_plot_theme, configure_plot_style
+from tdpy.verbosity import print
 
 if __package__:
     from .recallplots import (
@@ -40,6 +41,12 @@ else:
 
 def ensure_out(out_dir: str):
     os.makedirs(out_dir, exist_ok=True)
+
+
+def _save_figure(figure, out_path):
+    print(f'Writing to {out_path}...')
+    figure.savefig(out_path, dpi=200, facecolor=figure.get_facecolor())
+
 
 def basic_heatmap(Z, x_edges, y_edges, xlabel, ylabel, title, out_path,
                   x_log=False, y_log=False, vmin=0.0, vmax=1.0, typeplotback=None):
@@ -59,7 +66,7 @@ def basic_heatmap(Z, x_edges, y_edges, xlabel, ylabel, title, out_path,
     ax.set_aspect('equal', adjustable='box')
     fig.tight_layout()
     apply_plot_theme(fig, typeplotback)
-    fig.savefig(out_path, dpi=200, facecolor=fig.get_facecolor())
+    _save_figure(fig, out_path)
     plt.close(fig)
 
 def corner_heatmap(params: Dict[str, np.ndarray],
@@ -122,7 +129,7 @@ def corner_heatmap(params: Dict[str, np.ndarray],
     fig.suptitle(f'Corner Heatmap — {metric.capitalize()}', y=0.995)
     plt.tight_layout(rect=[0.02, 0.02, 0.90, 0.97])
     apply_plot_theme(fig, typeplotback)
-    plt.savefig(out_path, dpi=200, facecolor=fig.get_facecolor())
+    _save_figure(fig, out_path)
     plt.close(fig)
 
 def main():
@@ -139,7 +146,9 @@ def main():
     ensure_out(args.out)
 
     # Load CSVs and labels
+    print(f'Reading from {args.pos_csv}...')
     df_pos = pd.read_csv(args.pos_csv)
+    print(f'Reading from {args.neg_csv}...')
     df_neg = pd.read_csv(args.neg_csv)
     df_pos['y_true'] = 1
     df_neg['y_true'] = 0
@@ -178,15 +187,19 @@ def main():
         'duration': duration,
         'mean': mean_depth,
     })
-    ref.to_csv(os.path.join(args.out, 'params_overview.csv'), index=False)
+    overview_path = os.path.join(args.out, 'params_overview.csv')
+    print(f'Writing to {overview_path}...')
+    ref.to_csv(overview_path, index=False)
 
     # Overall metrics
     tp, tn, fp, fn = confusion_counts(y_true, y_pred)
     precision, recall, f1 = pr_from_conf(tp, fp, fn)
-    with open(os.path.join(args.out, 'summary.txt'), 'w') as f:
-        f.write(f'Threshold on SNR: {args.thr}\n')
-        f.write(f'Counts: TP={tp}, FP={fp}, FN={fn}, TN={tn}\n')
-        f.write(f'Precision={precision:.4f}, Recall={recall:.4f}, F1={f1:.4f}\n')
+    summary_path = os.path.join(args.out, 'summary.txt')
+    print(f'Writing to {summary_path}...')
+    with open(summary_path, 'w') as summary_file:
+        summary_file.write(f'Threshold on SNR: {args.thr}\n')
+        summary_file.write(f'Counts: TP={tp}, FP={fp}, FN={fn}, TN={tn}\n')
+        summary_file.write(f'Precision={precision:.4f}, Recall={recall:.4f}, F1={f1:.4f}\n')
 
     # Confusion matrix
     confusion_matrix_plot(tp, tn, fp, fn, os.path.join(args.out, 'confusion_matrix.png'))
@@ -203,7 +216,9 @@ def main():
     for pname, arr in params_1d.items():
         log_scale = (pname == 'radius_ratio')
         res = binned_metrics_uniform(y_true, y_pred, arr, bins=args.bins, log_scale=log_scale)
-        res.to_csv(os.path.join(args.out, f'{pname}_binned_metrics.csv'), index=False)
+        metrics_path = os.path.join(args.out, f'{pname}_binned_metrics.csv')
+        print(f'Writing to {metrics_path}...')
+        res.to_csv(metrics_path, index=False)
         basic_line_plot(res['center'], res['precision'], pname, 'Precision',
                         f'Precision vs {pname}', os.path.join(args.out, f'{pname}_precision.png'),
                         x_log=log_scale)
@@ -257,7 +272,7 @@ def main():
         plt.title(title)
         plt.tight_layout()
         figure = apply_plot_theme(plt.gcf())
-        plt.savefig(out_path, dpi=200, facecolor=figure.get_facecolor())
+        _save_figure(figure, out_path)
         plt.close()
 
     for pname, arr in params_1d.items():

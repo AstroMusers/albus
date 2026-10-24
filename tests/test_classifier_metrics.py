@@ -1,4 +1,5 @@
 import importlib
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -7,6 +8,7 @@ import matplotlib
 import numpy as np
 import pandas as pd
 import pytest
+from tdpy.verbosity import print
 
 matplotlib.use('Agg')
 
@@ -104,17 +106,17 @@ def test_all_nonfinite_coordinates_preserve_empty_metric_tables(plot_modules):
 def test_confusion_matrix_aligns_unequal_counts_with_true_and_predicted_labels(plot_modules, monkeypatch, tmp_path):
     current, older = plot_modules
     captured = {}
-    save = current.plt.savefig
+    save = current.plt.Figure.savefig
 
-    def capture_and_save(path, **kwargs):
-        axis = current.plt.gca()
+    def capture_and_save(figure, path, **kwargs):
+        axis = figure.axes[0]
         captured['matrix'] = axis.images[0].get_array().copy()
         captured['horizontal'] = [label.get_text() for label in axis.get_xticklabels()]
         captured['vertical'] = [label.get_text() for label in axis.get_yticklabels()]
         captured['annotations'] = {text.get_position(): text.get_text() for text in axis.texts}
-        return save(path, **kwargs)
+        return save(figure, path, **kwargs)
 
-    monkeypatch.setattr(current.plt, 'savefig', capture_and_save)
+    monkeypatch.setattr(current.plt.Figure, 'savefig', capture_and_save)
     filename = tmp_path / 'unequal_confusion_counts.png'
     print(f'Writing to {filename}...')
     older.confusion_matrix_plot(tp=2, tn=3, fp=5, fn=7, out_path=filename)
@@ -234,6 +236,7 @@ def test_classifier_plots_render_requested_theme(plot_modules, monkeypatch, tmp_
             options['cell_inches'] = 2.4
         module.corner_heatmap({'x': values, 'y': values}, truth, truth, 2, 'recall', filename, log_params=[], **options)
     assert len(captured) == 1
+    print(f'Reading from {filename}...')
     with Image.open(filename) as image:
         pixels = np.asarray(image.convert('RGB'))
         expected = tuple(int(channel * 255) for channel in to_rgba(background)[:3])
@@ -258,18 +261,31 @@ def test_classifier_cli_themes_every_generated_plot(tmp_path, script, typeplotba
     }
     positive = tmp_path / 'positive.csv'
     negative = tmp_path / 'negative.csv'
+    print(f'Writing to {positive}...')
     pd.DataFrame(columns | {'snr': [2, 4, 5, 1]}).to_csv(positive, index=False)
+    print(f'Writing to {negative}...')
     pd.DataFrame(columns | {'snr': [5, 1, 2, 6]}).to_csv(negative, index=False)
     output = tmp_path / 'plots'
-    subprocess.run(
+    environment = os.environ.copy()
+    environment['TDPY_VERBOSITY'] = '1'
+    result = subprocess.run(
         [sys.executable, str(ROOT / 'datavis_scripts' / f'{script}.py'),
          '--pos_csv', str(positive), '--neg_csv', str(negative), '--out', str(output),
          '--bins', '2', '--typeplotback', typeplotback],
-        cwd=tmp_path, capture_output=True, text=True, check=True,
+        cwd=tmp_path, env=environment, capture_output=True, text=True, check=True,
     )
+    print(f'Reading from {output / "summary.txt"}...')
     assert 'TP=2, FP=2, FN=2, TN=2' in (output / 'summary.txt').read_text()
     images = sorted(output.glob('*.png'))
     assert len(images) == (32 if script == 'recallplots' else 52)
+    for path in images:
+        print(f'Reading from {path}...')
+    output_lines = result.stdout.splitlines()
+    assert output_lines[:2] == [f'Reading from {positive}...', f'Reading from {negative}...']
+    written_paths = [line.removeprefix('Writing to ').removesuffix('...') for line in output_lines
+                     if line.startswith('Writing to ')]
+    assert len(written_paths) == len(list(output.iterdir()))
+    assert set(written_paths) == {str(path) for path in output.iterdir()}
     expected = (0, 0, 0) if typeplotback == 'dark' else (255, 255, 255)
     for path in images:
         with Image.open(path) as image:
