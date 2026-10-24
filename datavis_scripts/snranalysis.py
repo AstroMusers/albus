@@ -1,11 +1,14 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from tdpy.verbosity import print
 
 injected = True
 
 # if injected:
-dfi = pd.read_csv('data_outputs/injected_transits_output1.csv', header=0)
+injected_path = 'data_outputs/injected_transits_output1.csv'
+print(f'Reading from {injected_path}...')
+dfi = pd.read_csv(injected_path, header=0)
 snr = np.asarray(dfi['snr'], float)
 dfi['snr'] = pd.to_numeric(dfi['snr'], errors='coerce')
 # snr = dfi.dropna(subset=['snr'])['snr'].values.astype(float)
@@ -26,7 +29,9 @@ plt.title('SNR Distribution for Injected Transits')
 # else: 
 
 # plt.subplot(1, 2, 2)
-dfn = pd.read_csv('data_outputs/noninjected_transits_output1.csv', header=0)
+noninjected_path = 'data_outputs/noninjected_transits_output1.csv'
+print(f'Reading from {noninjected_path}...')
+dfn = pd.read_csv(noninjected_path, header=0)
 snr = np.asarray(dfn[' snr'], float)
 
 plt.hist(snr, bins=bins, color='blue', edgecolor='black', label='Non-injected', alpha=0.5, cumulative=False)
