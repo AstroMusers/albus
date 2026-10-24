@@ -15,7 +15,8 @@ import numpy as np
 import pandas as pd
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from matplotlib import pyplot as plt
-from tqdm import tqdm
+from paths import get_repository_path
+from tdpy.verbosity import print, tqdm
 from multiprocessing import get_context
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from concurrent.futures.process import BrokenProcessPool
@@ -28,10 +29,11 @@ from BLStests import test_depth, test_v_shape, test_snr, test_out_of_transit_var
 
 MAX_CORES = 32                        # hard cap
 N_SAMPLES = 999999                      # how many samples to generate this run
-TESS_CSV = 'data_inputs/tess_targets_data.csv'
+DATA_DIR = get_repository_path()
+TESS_CSV = str(DATA_DIR / 'data_inputs' / 'tess_targets_data.csv')
 
-INJ_OUT = 'data_outputs/injected_transits_output6.csv'
-NONINJ_OUT = 'data_outputs/noninjected_transits_output6.csv'
+INJ_OUT = str(DATA_DIR / 'data_outputs' / 'injected_transits_output6.csv')
+NONINJ_OUT = str(DATA_DIR / 'data_outputs' / 'noninjected_transits_output6.csv')
 
 PLOT_DIR_INJ = '../../WD_Plots/Injected'
 PLOT_DIR_NON = '../../WD_Plots/Noninjected'
@@ -43,6 +45,7 @@ def ensure_csv_with_header(path, header):
     is_new = not os.path.exists(path)
     if is_new:
         os.makedirs(os.path.dirname(path), exist_ok=True)
+        print(f'Writing to {path}...')
         with open(path, 'w', newline='') as f:
             writer = csv.writer(f)
             writer.writerow(header)
@@ -79,6 +82,7 @@ def load_existing_ids_from_csv(path):
     if not os.path.exists(path) or os.path.getsize(path) == 0:
         return ids
     try:
+        print(f'Reading from {path}...')
         df = pd.read_csv(path, usecols=['ID'])
         ids = set(pd.to_numeric(df['ID'], errors='coerce').dropna().astype(int).tolist())
     except Exception:
@@ -203,6 +207,7 @@ def worker(task):
     df_path = task['df_path']
 
     # Load df locally in each process (small table; avoids pickling large objects)
+    print(f'Reading from {df_path}...')
     df = pd.read_csv(df_path)
 
     # 1) pick a star + preprocess LC
@@ -297,20 +302,20 @@ def worker(task):
 # ------------------------ MAIN ------------------------
 def main():
     # Prepare inputs / outputs
+    print(f'Reading from {TESS_CSV}...')
     df = pd.read_csv(TESS_CSV)
 
     # Determine starting ID from existing injected file
     try:
+        print(f'Reading from {INJ_OUT}...')
         out = pd.read_csv(INJ_OUT)
         out_ids = set(pd.to_numeric(out['ID'], errors='coerce').dropna().astype(int))
     except FileNotFoundError:
         out_ids = set()
     next_id, seen_non, seen_inj = compute_resume_state()
-    print(
-        f"Writing to:\n  INJ: {os.path.abspath(INJ_OUT)}\n  NON: {os.path.abspath(NONINJ_OUT)}\n"
-        f"Starting next_id={next_id} (seen_non={len(seen_non)}, seen_inj={len(seen_inj)})",
-        flush=True
-    )
+    print(f'Writing to {INJ_OUT}...')
+    print(f'Writing to {NONINJ_OUT}...')
+    print(f"Starting next_id={next_id} (seen_non={len(seen_non)}, seen_inj={len(seen_inj)})")
     
 
     # Ensure headers exist

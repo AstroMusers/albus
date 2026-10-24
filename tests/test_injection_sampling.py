@@ -1228,6 +1228,19 @@ def test_main_pipeline_uses_canonical_paths_and_quiet_tdpy_output():
     assert 'aavikwadivkar' not in source
 
 
+def test_parallel_pipeline_uses_canonical_paths_and_quiet_tdpy_output():
+    path = ROOT / 'main_parallel.py'
+    print(f'Reading from {path}...')
+    source = path.read_text()
+
+    assert 'from paths import get_repository_path' in source
+    assert 'from tdpy.verbosity import print, tqdm' in source
+    assert "DATA_DIR / 'data_inputs' / 'tess_targets_data.csv'" in source
+    assert "DATA_DIR / 'data_outputs' / 'injected_transits_output6.csv'" in source
+    assert "DATA_DIR / 'data_outputs' / 'noninjected_transits_output6.csv'" in source
+    assert 'tqdm.write(' not in source
+
+
 @pytest.mark.parametrize('mode', ['', 'save', 'show'])
 @pytest.mark.parametrize('typeplotback', ['white', 'dark'])
 def test_actual_bls_candidate_selection_is_independent_of_plot_mode(bls_helpers, monkeypatch, tmp_path, mode, typeplotback):
