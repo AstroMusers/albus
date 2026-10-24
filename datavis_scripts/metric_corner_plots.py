@@ -5,6 +5,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.ticker import ScalarFormatter, LogLocator, LogFormatterMathtext
+from tdpy.verbosity import print
 
 # -------- global formatters / locators --------
 fmt_plain = ScalarFormatter(useOffset=False)
@@ -102,7 +103,9 @@ def main():
     os.makedirs(args.outdir, exist_ok=True)
 
     # ---- Load
+    print(f"Reading from {args.pos}...")
     pos_df = pd.read_csv(args.pos)
+    print(f"Reading from {args.neg}...")
     neg_df = pd.read_csv(args.neg)
     need = ["r_p", "r_s", "P_days", "a", "inc", args.snr_col]
     for c in need:
@@ -241,9 +244,9 @@ def main():
         fig.colorbar(im_last, cax=cax, label=cbar_label)
         fig.tight_layout(rect=[0, 0, 0.90, 0.95])
         out = os.path.join(args.outdir, fname)
+        print(f"Writing to {out}...")
         fig.savefig(out, bbox_inches="tight", dpi=args.dpi)
         plt.close(fig)
-        print("[SAVED]", out)
 
     # ---- make both figures
     draw_corner("precision", "corner_precision.png", "Precision")
