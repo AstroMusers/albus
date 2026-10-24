@@ -1,13 +1,16 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from tdpy.verbosity import print
 
 # File paths
 injected_file = 'data_outputs/injected_transits_output6.csv'
 noninjected_file = 'data_outputs/noninjected_transits_output6.csv'
 
 # Read the CSV files
+print(f'Reading from {injected_file}...')
 injected_data = pd.read_csv(injected_file)
+print(f'Reading from {noninjected_file}...')
 noninjected_data = pd.read_csv(noninjected_file)
 
 # Extract the 'snr' column
@@ -37,4 +40,6 @@ plt.legend()
 
 # Show the plot
 plt.tight_layout()
-plt.savefig('data_outputs/run6analysis/snr_histogram_unmarked.png', dpi=300)
+output_path = 'data_outputs/run6analysis/snr_histogram_unmarked.png'
+print(f'Writing to {output_path}...')
+plt.savefig(output_path, dpi=300)
