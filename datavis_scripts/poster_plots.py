@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 from itertools import combinations
 from scipy.stats import spearmanr
+from tdpy.verbosity import print
 
 # ---------------------------
 # 1) Load data
@@ -11,7 +12,9 @@ from scipy.stats import spearmanr
 inj_path = Path("data_outputs/injected_transits_output6.csv")
 noninj_path = Path("data_outputs/noninjected_transits_output6.csv")
 
+print(f"Reading from {inj_path}...")
 inj = pd.read_csv(inj_path)
+print(f"Reading from {noninj_path}...")
 non = pd.read_csv(noninj_path)
 
 # Mark ground truth
@@ -88,7 +91,9 @@ ax1.grid(True, alpha=0.25)
 ax1.set_xscale("log")
 ax1.legend()
 fig1.tight_layout()
-fig1.savefig("data_outputs/run6poster/precision_recall_vs_threshold.png", dpi=300)
+output_path = "data_outputs/run6poster/precision_recall_vs_threshold.png"
+print(f"Writing to {output_path}...")
+fig1.savefig(output_path, dpi=300)
 
 # ---------------------------
 # 4) Plot: Precision–Recall curve (sweep thresholds high→low)
@@ -107,7 +112,9 @@ ax2.set_title("Precision–Recall Curve")
 ax2.grid(True, alpha=0.25)
 ax2.legend()
 fig2.tight_layout()
-fig2.savefig("data_outputs/run6poster/precision_recall_curve.png", dpi=300)
+output_path = "data_outputs/run6poster/precision_recall_curve.png"
+print(f"Writing to {output_path}...")
+fig2.savefig(output_path, dpi=300)
 
 # ---------------------------
 # 5) Plot: SNR distribution (injected=blue, non-injected=gray)
@@ -130,7 +137,9 @@ ax3.set_xscale("log"); ax3.set_yscale("log")
 ax3.grid(True, alpha=0.25)
 ax3.legend()
 fig3.tight_layout()
-fig3.savefig("data_outputs/run6poster/snr_histograms.png", dpi=300)
+output_path = "data_outputs/run6poster/snr_histograms.png"
+print(f"Writing to {output_path}...")
+fig3.savefig(output_path, dpi=300)
 
 # ---------------------------
 # 6) 2D Recovery fraction heatmap over radius–period
@@ -172,7 +181,9 @@ ax4.set_ylabel("Orbital period (days)")
 ax4.set_title("Recovery Fraction (Injected Only)")
 ax4.set_xscale("log")
 fig4.tight_layout()
-fig4.savefig("data_outputs/run6poster/recovery_fraction_heatmap.png", dpi=300)
+output_path = "data_outputs/run6poster/recovery_fraction_heatmap.png"
+print(f"Writing to {output_path}...")
+fig4.savefig(output_path, dpi=300)
 
 # ---------------------------
 # 7) Corner plot of parameters vs detection metrics
@@ -226,7 +237,9 @@ for i in range(k):
 
 plt.suptitle("Corner: Parameter Correlations & Detection (Injected Only)", y=0.92)
 plt.tight_layout(rect=[0,0,1,0.95])
-fig5.savefig("data_outputs/run6poster/corner_parameters.png", dpi=300)
+output_path = "data_outputs/run6poster/corner_parameters.png"
+print(f"Writing to {output_path}...")
+fig5.savefig(output_path, dpi=300)
 
 print("[DONE] Saved figures:\n",
       " - precision_recall_vs_threshold.png\n",
