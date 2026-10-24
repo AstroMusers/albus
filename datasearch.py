@@ -1,6 +1,8 @@
 import csv
+from tdpy.verbosity import print
 
 file_path = 'data_outputs/noninjected_transits_output6.csv'
+print(f"Reading from {file_path}...")
 with open(file_path, mode='r') as file:
     reader = csv.DictReader(file)
     max_snr_row = None
