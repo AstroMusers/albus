@@ -1228,6 +1228,17 @@ def test_main_pipeline_uses_canonical_paths_and_quiet_tdpy_output():
     assert 'aavikwadivkar' not in source
 
 
+def test_main_testing_uses_canonical_paths_and_tdpy_output():
+    path = ROOT / 'main_testing.py'
+    print(f'Reading from {path}...')
+    source = path.read_text()
+
+    assert 'from paths import get_repository_path' in source
+    assert 'from tdpy.verbosity import print' in source
+    assert "DATA_DIR / 'data_inputs' / 'tess_targets_data.csv'" in source
+    assert 'aavikwadivkar' not in source
+
+
 def test_parallel_pipeline_uses_canonical_paths_and_quiet_tdpy_output():
     path = ROOT / 'main_parallel.py'
     print(f'Reading from {path}...')

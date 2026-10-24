@@ -1,9 +1,11 @@
 import random
+from pathlib import Path
 import pandas as pd
 import numpy as np
 import csv
-from tqdm import tqdm
 from matplotlib import pyplot as plt
+from paths import get_repository_path
+from tdpy.verbosity import print
 from preprocess import preprocess
 from injections import inject_transit
 from injection_sampling import sample_power_law
@@ -11,7 +13,10 @@ from BLSFit import BLSfit, BLSResults, FoldedLC
 from BLStests import test_depth, test_v_shape, test_snr, test_out_of_transit_variability
 import gc
 
-df = pd.read_csv('data_inputs/tess_targets_data.csv')
+DATA_DIR = get_repository_path()
+target_path = DATA_DIR / 'data_inputs' / 'tess_targets_data.csv'
+print(f'Reading from {target_path}...')
+df = pd.read_csv(target_path)
 inj_output_file = 'data_outputs/injected_transits_output6.csv'
 noninj_output_file = 'data_outputs/noninjected_transits_output6.csv'
 
@@ -49,7 +54,9 @@ def fit_fold_and_test(lc, folder, output_file, Injected=False):
         plt.ylabel('Normalized Flux')
         plt.legend()
         plt.title(f'ID {ID} Folded Light Curve at Period = {round(period,3)} days')
-        plt.savefig(f'{folder}/ID_{ID}_Folded_LC_Period_{round(period,3)}.png')
+        plot_path = Path(folder) / f'ID_{ID}_Folded_LC_Period_{round(period,3)}.png'
+        print(f'Writing to {plot_path}...')
+        plt.savefig(plot_path)
         plt.close('all')
 
         # Run tests
