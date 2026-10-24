@@ -1,16 +1,21 @@
 import random
 import pandas as pd
 import csv
-from tqdm import tqdm
 import os
 from matplotlib import pyplot as plt
+from paths import get_repository_path
+from tdpy.verbosity import print, tqdm
 from preprocess import preprocess
 from injections import inject_transit
 from BLSFit import BLSfit, BLSResults, FoldedLC, BLSOutput, BLSTestOutputs
 from BLStests import test_period, test_duration, test_depth, test_v_shape, test_snr, test_out_of_transit_variability, create_transit_mask_manual
 
-df = pd.read_csv('tess_targets_data.csv')
-output_file = '/Users/aavikwadivkar/Documents/Exoplanets/Ampersand/albus/albus/data_outputs/noninjected_transits_output1.csv'
+DATA_DIR = get_repository_path()
+target_path = DATA_DIR / 'tess_targets_data.csv'
+print(f'Reading from {target_path}...')
+df = pd.read_csv(target_path)
+output_file = DATA_DIR / 'data_outputs/noninjected_transits_output1.csv'
+print(f'Reading from {output_file}...')
 out = pd.read_csv(output_file)
 completed_ids = set(out['ID'])
 lc = None

@@ -1206,7 +1206,11 @@ def bls_helpers():
 def noninjection_loop():
     path = ROOT / 'main_noninject.py'
     print(f'Reading from {path}...')
-    statements = ast.parse(path.read_text()).body
+    source = path.read_text()
+    assert 'from paths import get_repository_path' in source
+    assert 'from tdpy.verbosity import print, tqdm' in source
+    assert 'aavikwadivkar' not in source
+    statements = ast.parse(source).body
     initialization = next(node for node in statements if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == 'completed_ids' for target in node.targets))
     loop = next(node for node in statements if isinstance(node, ast.For))
     return compile(ast.Module(body=[initialization, loop], type_ignores=[]), str(path), 'exec')
