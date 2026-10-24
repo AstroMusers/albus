@@ -1239,6 +1239,16 @@ def test_main_testing_uses_canonical_paths_and_tdpy_output():
     assert 'aavikwadivkar' not in source
 
 
+def test_preprocess_routes_console_and_plot_paths_through_tdpy():
+    path = ROOT / 'preprocess.py'
+    print(f'Reading from {path}...')
+    source = path.read_text()
+
+    assert 'from tdpy.verbosity import print' in source
+    assert source.count("print(f'Writing to {plot_path}...')") == 3
+    assert 'plt.savefig(plot_path)' in source
+
+
 def test_parallel_pipeline_uses_canonical_paths_and_quiet_tdpy_output():
     path = ROOT / 'main_parallel.py'
     print(f'Reading from {path}...')

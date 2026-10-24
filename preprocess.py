@@ -4,6 +4,8 @@ import lightkurve as lk
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.signal import medfilt
+from pathlib import Path
+from tdpy.verbosity import print
 
 def find_light_curve(targets, max_tries=10, rng=None, *, preprocess_func=None, verbose=False):
     """Select a target with a usable curve, retaining the fixed-density radius estimate."""
@@ -53,7 +55,9 @@ def preprocess(input, TICID = True, injection = False, plots = False, report=Fal
 
     if plots: 
         lcc[0].plot()
-        plt.savefig(f'presentation_plots/{input}_rawlc.png')
+        plot_path = Path('presentation_plots') / f'{input}_rawlc.png'
+        print(f'Writing to {plot_path}...')
+        plt.savefig(plot_path)
         plt.close()
 
     lc_list = []
@@ -68,7 +72,9 @@ def preprocess(input, TICID = True, injection = False, plots = False, report=Fal
             if lc_list == []: 
                 max_day = lc_single.time[-1].value
                 lc_single.plot()
-                plt.savefig(f'presentation_plots/{input}_flattenedlc.png')
+                plot_path = Path('presentation_plots') / f'{input}_flattenedlc.png'
+                print(f'Writing to {plot_path}...')
+                plt.savefig(plot_path)
                 plt.close()
         
         lc_single = lc_single.normalize()
@@ -97,7 +103,9 @@ def preprocess(input, TICID = True, injection = False, plots = False, report=Fal
         plt.ylabel('Flux')
         plt.title(f'ID {input} Detrending')
         plt.legend()
-        plt.savefig(f'presentation_plots/{input}_detrendedlc.png')
+        plot_path = Path('presentation_plots') / f'{input}_detrendedlc.png'
+        print(f'Writing to {plot_path}...')
+        plt.savefig(plot_path)
         plt.close()
         print("Plotted detrended LC.")
 
