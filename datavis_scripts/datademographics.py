@@ -1,10 +1,12 @@
 import pandas as pd
 import matplotlib.pyplot as plt
+from tdpy.verbosity import print
 
 # File path
 file_path = 'data_outputs/injected_transits_output6.csv'
 
 # Read the CSV file
+print(f"Reading from {file_path}...")
 data = pd.read_csv(file_path)
 
 # Calculate Radius Ratio
@@ -46,5 +48,7 @@ plt.suptitle('Histograms of Radius Ratio, Period, and Inclination')
 plt.tight_layout()
 
 # Show the plot
-plt.savefig('data_outputs/run6analysis/histograms_radius_period_inclination6.png', dpi=300)
+output_path = 'data_outputs/run6analysis/histograms_radius_period_inclination6.png'
+print(f"Writing to {output_path}...")
+plt.savefig(output_path, dpi=300)
 plt.show()
