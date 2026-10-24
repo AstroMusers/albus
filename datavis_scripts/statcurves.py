@@ -5,12 +5,20 @@ import pandas as pd
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from tdpy.verbosity import print
 
 def load_snr(path, col):
+    print(f"Reading from {path}...")
     df = pd.read_csv(path)
     if col not in df.columns:
         raise ValueError(f"{col} not found in {path}, available: {df.columns}")
     return pd.to_numeric(df[col], errors="coerce").dropna().to_numpy()
+
+
+def _save_figure(path):
+    print(f"Writing to {path}...")
+    plt.savefig(path)
+
 
 def confusion(y_true, y_pred):
     tp = np.sum((y_true==1)&(y_pred==1))
@@ -50,7 +58,9 @@ def main():
                         "precision":prec,"recall":rec,"f1":f1})
 
     df = pd.DataFrame(records)
-    df.to_csv(os.path.join(args.outdir,"metrics_by_threshold.csv"),index=False)
+    metrics_path = os.path.join(args.outdir, "metrics_by_threshold.csv")
+    print(f"Writing to {metrics_path}...")
+    df.to_csv(metrics_path, index=False)
 
     # f1 curve
     plt.figure()
@@ -61,7 +71,7 @@ def main():
     max_f1_threshold = df.loc[df["f1"].idxmax(), "threshold"]
     plt.axvline(x=max_f1_threshold, color='r', linestyle='--', label=f'Max F1 = {max_f1:.2f} at Threshold = {max_f1_threshold:.2f}')
     plt.legend()
-    plt.grid(); plt.savefig(os.path.join(args.outdir, "f1_curve.png")); plt.close()
+    plt.grid(); _save_figure(os.path.join(args.outdir, "f1_curve.png")); plt.close()
 
     # precision curve
     plt.figure()
@@ -70,7 +80,7 @@ def main():
     plt.xscale("log"); plt.ylim(0,1.05)
     plt.axvline(x=max_f1_threshold, color='r', linestyle='--', label=f'Max F1 = {max_f1:.2f} at Threshold = {max_f1_threshold:.2f}')
     plt.legend()
-    plt.grid(); plt.savefig(os.path.join(args.outdir,"precision_curve.png")); plt.close()
+    plt.grid(); _save_figure(os.path.join(args.outdir,"precision_curve.png")); plt.close()
 
     # recall curve
     plt.figure()
@@ -79,7 +89,7 @@ def main():
     plt.xscale("log"); plt.ylim(0,1.05)
     plt.axvline(x=max_f1_threshold, color='r', linestyle='--', label=f'Max F1 = {max_f1:.2f} at Threshold = {max_f1_threshold:.2f}')
     plt.legend()
-    plt.grid(); plt.savefig(os.path.join(args.outdir,"recall_curve.png")); plt.close()
+    plt.grid(); _save_figure(os.path.join(args.outdir,"recall_curve.png")); plt.close()
 
     plt.figure()
     plt.plot(df["threshold"], df["precision"], label="Precision", color="blue")
@@ -88,13 +98,13 @@ def main():
     plt.xscale("log"); plt.ylim(0,1.05)
     plt.axvline(x=max_f1_threshold, color='r', linestyle='--', label=f'Max F1 = {max_f1:.2f} at Threshold = {max_f1_threshold:.2f}')
     plt.legend()
-    plt.grid(); plt.savefig(os.path.join(args.outdir,"precision_recall_curve_separate.png")); plt.close()
+    plt.grid(); _save_figure(os.path.join(args.outdir,"precision_recall_curve_separate.png")); plt.close()
 
     # PR curve
     plt.figure()
     plt.plot(df["recall"], df["precision"])
     plt.xlabel("Recall"); plt.ylabel("Precision"); plt.title("PR Curve")
-    plt.grid(); plt.savefig(os.path.join(args.outdir,"pr_curve.png")); plt.close()
+    plt.grid(); _save_figure(os.path.join(args.outdir,"pr_curve.png")); plt.close()
 
     # ROC curve
     fpr = df["FP"]/(df["FP"]+df["TN"])
@@ -102,7 +112,7 @@ def main():
     plt.figure()
     plt.plot(fpr,tpr)
     plt.xlabel("FPR"); plt.ylabel("TPR"); plt.title("ROC Curve")
-    plt.grid(); plt.savefig(os.path.join(args.outdir,"roc_curve.png")); plt.close()
+    plt.grid(); _save_figure(os.path.join(args.outdir,"roc_curve.png")); plt.close()
 
     # Histograms
     plt.figure()
@@ -112,7 +122,7 @@ def main():
     plt.xscale("log"); plt.yscale("log"); plt.xlabel("SNR"); plt.ylabel("Density")
     plt.legend(); plt.title("SNR Distributions")
     # plt.grid(which="both"); 
-    plt.savefig(os.path.join(args.outdir,"snr_hist.png")); plt.close()
+    _save_figure(os.path.join(args.outdir,"snr_hist.png")); plt.close()
 
 if __name__=="__main__":
     main()
