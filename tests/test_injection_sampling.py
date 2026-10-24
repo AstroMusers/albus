@@ -1216,6 +1216,18 @@ def noninjection_loop():
     return compile(ast.Module(body=[initialization, loop], type_ignores=[]), str(path), 'exec')
 
 
+def test_main_pipeline_uses_canonical_paths_and_quiet_tdpy_output():
+    path = ROOT / 'main.py'
+    print(f'Reading from {path}...')
+    source = path.read_text()
+
+    assert 'from paths import get_repository_path' in source
+    assert 'from tdpy.verbosity import print, tqdm' in source
+    assert "DATA_DIR / 'data_inputs' / 'tess_targets_data.csv'" in source
+    assert 'tqdm.write(' not in source
+    assert 'aavikwadivkar' not in source
+
+
 @pytest.mark.parametrize('mode', ['', 'save', 'show'])
 @pytest.mark.parametrize('typeplotback', ['white', 'dark'])
 def test_actual_bls_candidate_selection_is_independent_of_plot_mode(bls_helpers, monkeypatch, tmp_path, mode, typeplotback):
@@ -1537,7 +1549,7 @@ def test_actual_fit_drivers_use_each_candidates_own_ephemeris(bls_helpers, tmp_p
     helpers['plt'] = plotter
     selector = Mock(wraps=helpers['BLSResults'])
     namespace = {
-        'os': os, 'np': np, 'plt': plotter, 'csv': csv, 'print': Mock(),
+        'os': os, 'Path': Path, 'np': np, 'plt': plotter, 'csv': csv, 'print': Mock(),
         'BLSfit': Mock(return_value=periodogram), 'BLSResults': selector,
         'FoldedLC': fold, 'test_out_of_transit_variability': Mock(return_value=0.01),
         'test_depth': depth, 'test_v_shape': vshape, 'test_snr': snr,

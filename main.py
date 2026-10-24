@@ -1,9 +1,11 @@
 import random
+from pathlib import Path
 import pandas as pd
 import numpy as np
 import csv
-from tqdm import tqdm
 from matplotlib import pyplot as plt
+from paths import get_repository_path
+from tdpy.verbosity import print, tqdm
 from preprocess import preprocess, find_light_curve as _select_light_curve
 from injections import inject_transit
 from injection_sampling import sample_power_law
@@ -11,11 +13,15 @@ from BLSFit import BLSfit, BLSResults, FoldedLC
 from BLStests import test_depth, test_v_shape, test_snr, test_out_of_transit_variability
 import gc
 
-df = pd.read_csv('data_inputs/tess_targets_data.csv')
-inj_output_file = 'data_outputs/injected_transits_output5.csv'
-noninj_output_file = 'data_outputs/noninjected_transits_output5.csv'
+DATA_DIR = get_repository_path()
+target_path = DATA_DIR / 'data_inputs' / 'tess_targets_data.csv'
+print(f'Reading from {target_path}...')
+df = pd.read_csv(target_path)
+inj_output_file = DATA_DIR / 'data_outputs' / 'injected_transits_output5.csv'
+noninj_output_file = DATA_DIR / 'data_outputs' / 'noninjected_transits_output5.csv'
 
 try:
+    print(f'Reading from {inj_output_file}...')
     out = pd.read_csv(inj_output_file)
     out_ids = set(pd.to_numeric(out['ID'], errors='coerce').dropna().astype(int))
 except FileNotFoundError:
@@ -56,7 +62,9 @@ def fit_fold_and_test(lc, folder, output_file, Injected=False):
         plt.ylabel('Normalized Flux')
         plt.legend()
         plt.title(f'ID {ID} Folded Light Curve at Period = {round(period,3)} days')
-        plt.savefig(f'{folder}/ID_{ID}_Folded_LC_Period_{round(period,3)}.png')
+        plot_path = Path(folder) / f'ID_{ID}_Folded_LC_Period_{round(period,3)}.png'
+        print(f'Writing to {plot_path}...')
+        plt.savefig(plot_path)
         plt.close('all')
 
         # Run tests
@@ -78,16 +86,17 @@ def fit_fold_and_test(lc, folder, output_file, Injected=False):
                         oot_variability, snr])
 
     if rows:
-        with open(output_file, 'a', newline='') as f:
-            csv.writer(f).writerows(rows)
+        print(f'Writing to {output_file}...')
+        with Path(output_file).open('a', newline='') as output_stream:
+            csv.writer(output_stream).writerows(rows)
 
 while True:
     star_info = find_light_curve()
     if star_info is None:
-        tqdm.write("Could not get a valid light curve after retries; continuing to next sample.")
+        print("Could not get a valid light curve after retries; continuing to next sample.")
         continue
     tic_id, lc, massH, m_s, r_s, e_r_s = star_info
-    tqdm.write(f"Using TIC {tic_id}: r_s={r_s/6.957e+8:.3f} R_sun")
+    print(f"Using TIC {tic_id}: r_s={r_s/6.957e+8:.3f} R_sun")
 
     r_p = float(sample_power_law(0.5, 5, 1.5)) # Earth Radii
     rho = 1186*r_p**0.4483 if r_p < 2.5 else 2296*r_p**-1.413
@@ -106,7 +115,7 @@ while True:
             P_days = P_try
             break
     if a is None:
-        tqdm.write("Could not find an 'a' with P<=15 d within 10 tries; skipping this star.")
+        print("Could not find an 'a' with P<=15 d within 10 tries; skipping this star.")
         continue
 
     x = np.clip((0.01 + r_p)/a, -1.0, 1.0)
@@ -139,7 +148,7 @@ while True:
         fit_fold_and_test(inj, folder='../../WD_Plots/Injected', output_file=inj_output_file, Injected=True)
 
     except Exception as e:
-        tqdm.write(f"Error processing ID {ID}: {e}")
+        print(f"Error processing ID {ID}: {e}")
     finally:
         plt.close('all')
         gc.collect()
