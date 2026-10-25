@@ -122,7 +122,7 @@ ax.set_xlabel(r'Radius Ratio ($R_{\mathrm{J}} / R_{\mathrm{*}}$)')
 ax.set_ylabel('SNR')
 ax.set_yscale('log')
 ax.set_title('Radius Ratio vs SNR (scatter + binned avg)')
-ax.grid(True, linestyle=':', linewidth=0.5)
+ax.grid(False)
 
 # Period
 ax = axes[0,1]
@@ -132,7 +132,7 @@ ax.plot(centers, means, marker='o', color='C1', linewidth=1.5)
 ax.set_xlabel('Period (days)')
 ax.set_yscale('log')
 ax.set_title('Period vs SNR (scatter + binned avg)')
-ax.grid(True, linestyle=':', linewidth=0.5)
+ax.grid(False)
 
 # Inclination
 ax = axes[0,2]
@@ -143,7 +143,7 @@ ax.set_xlabel('Inclination (deg)')
 ax.set_xscale('log') 
 ax.set_yscale('log')
 ax.set_title('Inclination vs SNR (scatter + binned avg)')
-ax.grid(True, linestyle=':', linewidth=0.5)
+ax.grid(False)
 
 # Bottom row: heatmaps (Radius vs Period, Period vs Inclination, Radius vs Inclination)
 # Heatmap 1: Radius vs Period (use xp_edges, yp_edges)

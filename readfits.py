@@ -4,7 +4,7 @@ from astropy.coordinates import SkyCoord
 import astropy.units as u
 
 from astroquery.mast import Catalogs, Observations
-from tqdm import tqdm
+from tdpy.verbosity import print, tqdm
 import csv, os, json, time
 from math import isfinite
 from catalog_values import finite_or_none, CatalogQueryError

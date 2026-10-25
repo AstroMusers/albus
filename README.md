@@ -2,20 +2,18 @@
 > **Currently under active development.**
 
 # albus
-Could a planet passing in front of a white dwarf leave a recognizable dip in its light curve? Albus gives us a place to test that question with simulated transit injections and light-curve analysis using [Astropy](https://github.com/astropy/astropy), [batman](https://github.com/lkreidberg/batman), and [Lightkurve](https://github.com/lightkurve/lightkurve). The pipeline is still under active development.
+We use Albus to test whether a planet crossing a white dwarf leaves a recognizable transit in its light curve. We inject simulated transits and analyze them with [Astropy](https://github.com/astropy/astropy), [batman](https://github.com/lkreidberg/batman), and [Lightkurve](https://github.com/lightkurve/lightkurve).
 
 ## Synthetic BLS example
 
 The [synthetic BLS notebook](examples/synthetic_bls_pipeline.ipynb) sends a
 seeded toy transit through `BLSfit()`, `BLSResults()`, and `FoldedLC()`, then
 saves the periodogram and folded curve under `examples/visuals/`. Run it with a
-Python environment that includes Lightkurve and TDpy. The recovered period
-illustrates the pipeline on known synthetic input; it is not a planet detection
-or a survey-completeness result.
+Python environment that includes Lightkurve and TDpy. With the fixed seed, the
+notebook recovers a 3.4-day injected period at 3.4002 days. This example
+demonstrates period recovery on synthetic input. It does not measure planet yield
+or survey completeness.
 The notebook also writes a [self-contained interactive Bokeh view](examples/visuals/albus_synthetic_bls_interactive.html) of the periodogram and folded curve. Bokeh is an additional notebook dependency.
-
-With a 3.4-day injected period and the notebook's fixed random seed, this run
-returns 3.40024 days. That value describes the toy example only.
 
 Our `paths.py` module reads `ALBUS_PATH`, which defaults to this checkout. It exposes local `data/` and `visuals/` directories. Git ignores both.
 
@@ -60,21 +58,17 @@ samples. These cases do not fabricate zero depths or noise estimates.
 We select BLS period candidates before rendering. Disabling, showing, or saving
 the periodogram plot returns the same candidates and best-fit transit parameters.
 We keep the raw-power maximum first and add distinct periods from the full
-detrended ranking, up to four candidates. Earlier runs could omit the strongest
-detrended peak when the raw and detrended maxima differed.
+detrended ranking, up to four candidates.
 By default, `BLSResults()` keeps its five-value return with the raw best-fit epoch
 and duration. Our injection and non-injection drivers request
 `candidate_ephemerides=True` to receive epochs and durations aligned with the
-returned periods. Each candidate is folded and
-tested with its own fitted parameters. Earlier runs reused the raw best-fit epoch
-and duration for every candidate, which could shift secondary transit windows.
-Failed BLS fits propagate their original exceptions rather than returning text
-that downstream code could mistake for a periodogram.
+returned periods. Each candidate is folded and tested with its own fitted
+parameters. Failed BLS fits propagate their original exceptions, so downstream
+code cannot mistake an error message for a periodogram.
 BLS periods and powers must be nonempty, aligned one-dimensional arrays, with
 finite powers and finite positive periods. Invalid trials raise an error before
 smoothing or selecting a maximum. No powers are silently filled or dropped.
 Period-bin summaries omit empty bins while retaining the full periodogram curve.
-Earlier runs with plotting disabled may have searched fewer period candidates.
 Folded-curve plots honor save/show requests for both binned and unbinned curves.
 Binned calls retain their existing return value regardless of the `output` flag.
 Unbinned calls return the folded curve when `output=True`.

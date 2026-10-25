@@ -5,13 +5,17 @@ from tqdm import tqdm
 import os
 from matplotlib import pyplot as plt
 import numpy as np
+from pathlib import Path
 from preprocess import preprocess
-from injections import inject_transit
+from injections import EARTH_RADIUS_M, SOLAR_RADIUS_M, inject_transit, minimum_transit_inclination
 from BLSFit import BLSfit, BLSResults, FoldedLC, BLSTestOutputs
 from BLStests import test_period, test_duration, test_depth, test_v_shape, test_snr, test_out_of_transit_variability, transit_depth_quantile_phase
+from tdpy.verbosity import print
 
 
-df = pd.read_csv('data_inputs/tess_targets_data_old.csv')
+catalog_path = Path('data_inputs/tess_targets_data_old.csv')
+print(f'Reading from {catalog_path}...')
+df = pd.read_csv(catalog_path)
 # output_file = 'Pipeline/injected_transits_datapoints.csv'
 
 # out = pd.read_csv('Pipeline/injected_transits_datapoints.csv')
@@ -30,32 +34,32 @@ while lc is None:
     try: lc = preprocess(tic_id, TICID=True)
     except: pass
 
-m_s = float(df['MassH'][rand]*1.989*10**30)   # Mass in kg
-r_s = np.cbrt(m_s/(1e9*(4/3 * np.pi)))        # Assumes density of 10^9 kg/m^3, need citation
-e_r_s = r_s * 1/3 * df['E_MassH'][rand]/df['MassH'][rand]
+m_s = float(df['MassH'][rand]*1.989*10**30)   # [kg]
+r_s = np.cbrt(m_s/(1e9*(4/3 * np.pi)))        # [m], density = 10^9 kg m^-3
+e_r_s = r_s * 1/3 * df['E_MassH'][rand]/df['MassH'][rand]  # [m]
 
-r_p = 1                         # Range of planet radii from 0.01 to 1 Earth Radii
+r_p = 1                         # [R_earth]
 
-rho = 1186*r_p**0.4483 if r_p < 2.5 else 2296*r_p**-1.413
-roche = np.cbrt((3/2)*np.pi * m_s/(rho))
-a = 4*roche
+rho = 1186*r_p**0.4483 if r_p < 2.5 else 2296*r_p**-1.413  # [kg m^-3]
+roche = np.cbrt((3/2)*np.pi * m_s/(rho))  # [m]
+a = 4*roche  # [m]
 print(f"4 Roche lobe radius: {a} m")
-period = np.sqrt((4*np.pi**2*a**3)/(6.67*10**-11*(m_s))) / (24*3600)  # Orbital period in days
+period = np.sqrt((4*np.pi**2*a**3)/(6.67*10**-11*(m_s))) / (24*3600)  # [day]
 
 # period = 1+(10/res)*j                       # Range of periods from 1 to 10 days
 # a = calc_a(0.6, period)/6.957*10**8         # Semi-major axis in meters
 
-inc_min = np.arccos((0.01+r_p)/a)/np.pi*180   # Minimum transit inclination in degrees
-inc = 90                                   # Inclination from 90 to i_min degrees
+inc_min = minimum_transit_inclination(r_s, r_p * EARTH_RADIUS_M, a)  # [deg]
+inc = 90                                   # [deg]
 
-print(f"r_s: {r_s/6.957e+8} solar radii, e_r_s: {e_r_s/6.957e+8}, r_p: {r_p} r_e, a: {a/1.496e+11} au, period: {period}, inc: {inc}")
+    print(f"r_s: {r_s/SOLAR_RADIUS_M} solar radii, e_r_s: {e_r_s/SOLAR_RADIUS_M}, r_p: {r_p} r_e, a: {a/1.496e+11} au, period: {period}, inc: {inc}")
 
 inj = lc
 # Inject transit
 inj = inject_transit(tic_id, lc, lc['time'].value,
-                radius_star = r_s / 6.957e+8, 
+                radius_star = r_s / SOLAR_RADIUS_M,  # [R_sun]
                 mass_star = df['MassH'][rand], 
-                radius_planet = r_p * 0.01, 
+                radius_planet = r_p * EARTH_RADIUS_M / SOLAR_RADIUS_M,  # [R_sun]
                 albedo_planet=0.1, 
                 period=period,
                 inclination=inc
@@ -150,7 +154,9 @@ plt.title(f'Folded Light Curve for TIC {tic_id} at {best_period:.2f} days')
 plt.xlabel('Phase [JD]')
 plt.ylabel('Normalized Flux')
 plt.legend()
-plt.savefig(f'sampleBLS/Folded_LC_TIC_{tic_id}.png', dpi=300)
+output_path = Path('sampleBLS') / f'Folded_LC_TIC_{tic_id}.png'
+print(f'Writing to {output_path}...')
+plt.savefig(output_path, dpi=300)
 
 try: median, mean, max_depth = test_depth(folded_lc['time'],
                 folded_lc['flux'],

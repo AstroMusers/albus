@@ -22,7 +22,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from concurrent.futures.process import BrokenProcessPool
 
 from preprocess import preprocess, find_light_curve as _select_light_curve
-from injections import inject_transit
+from injections import EARTH_RADIUS_M, SOLAR_RADIUS_M, inject_transit, minimum_transit_inclination
 from injection_sampling import sample_power_law
 from BLSFit import BLSfit, BLSResults, FoldedLC
 from BLStests import test_depth, test_v_shape, test_snr, test_out_of_transit_variability
@@ -39,7 +39,7 @@ PLOT_DIR_INJ = '../../WD_Plots/Injected'
 PLOT_DIR_NON = '../../WD_Plots/Noninjected'
 
 # physics
-G = 6.67e-11
+G = 6.67e-11  # [m^3 kg^-1 s^-2]
 
 def ensure_csv_with_header(path, header):
     is_new = not os.path.exists(path)
@@ -220,12 +220,12 @@ def worker(task):
     log(ID, f"preprocess: ok (TIC {tic_id})")
 
     # 2) sample planet params
-    r_p = float(sample_power_law(0.5, 5, 1.5))  # Earth radii
-    rho = 1186*r_p**0.4483 if r_p < 2.5 else 2296*r_p**-1.413  # kg/m^3
+    r_p = float(sample_power_law(0.5, 5, 1.5))  # [R_earth]
+    rho = 1186*r_p**0.4483 if r_p < 2.5 else 2296*r_p**-1.413  # [kg m^-3]
 
-    roche = np.cbrt((3/2) * np.pi * m_s / rho)
-    a_min = _to_float(0.5 * roche)
-    a_max = _to_float(10.5 * roche)
+    roche = np.cbrt((3/2) * np.pi * m_s / rho)  # [m]
+    a_min = _to_float(0.5 * roche)  # [m]
+    a_max = _to_float(10.5 * roche)  # [m]
 
     # Bail out if bounds are invalid
     if not (np.isfinite(a_min) and np.isfinite(a_max) and a_min > 0 and a_max > a_min):
@@ -233,14 +233,14 @@ def worker(task):
 
 
     a = None
-    P_days = None
+    P_days = None  # [day]
     for _ in range(10):
         try:
-            a_try = float(np.random.uniform(a_min, a_max))
+            a_try = float(np.random.uniform(a_min, a_max))  # [m]
         except (OverflowError, ValueError):  # ultra-defensive
             break  # will hit the 'a is None' path below
 
-        P_try = float(np.sqrt((4*np.pi**2 * a_try**3) / (G * m_s)) / (24*3600))
+        P_try = float(np.sqrt((4*np.pi**2 * a_try**3) / (G * m_s)) / (24*3600))  # [day]
         if np.isfinite(P_try) and P_try <= 15:
             a, P_days = a_try, P_try
             break
@@ -248,9 +248,8 @@ def worker(task):
     if a is None:
         return {'inj_rows': [], 'non_rows': [], 'error': 'Could not find a with P<=15 d'}
 
-    x = np.clip((0.01 + r_p)/a, -1.0, 1.0)
-    inc_min = np.degrees(np.arccos(x))
-    inc = float(np.random.uniform(inc_min, 90.0))
+    inc_min = minimum_transit_inclination(r_s, r_p * EARTH_RADIUS_M, a)  # [deg]
+    inc = float(np.random.uniform(inc_min, 90.0))  # [deg]
 
     err = None
     inj_rows = []
@@ -270,9 +269,9 @@ def worker(task):
         log(ID, "inject: begin")
         inj = inject_transit(
             tic_id, lc, lc['time'].value,
-            radius_star = r_s / 6.957e+8,
+            radius_star = r_s / SOLAR_RADIUS_M,  # [R_sun]
             mass_star = massH,
-            radius_planet = r_p * 0.01,
+            radius_planet = r_p * EARTH_RADIUS_M / SOLAR_RADIUS_M,  # [R_sun]
             albedo_planet=0.1,
             period=P_days,
             inclination=inc,

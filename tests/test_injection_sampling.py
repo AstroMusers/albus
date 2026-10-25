@@ -28,6 +28,7 @@ from astropy.table import Table, MaskedColumn
 from astropy.coordinates import SkyCoord
 from astropy.io import fits
 from scipy.signal import medfilt
+from tdpy.verbosity import print
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -91,6 +92,131 @@ def test_bls_csv_writers_log_output_paths_when_verbose(tmp_path, monkeypatch, ca
     assert f'Writing to {metrics_path}...' in output
     assert candidate_path.read_text().startswith('target,42,')
     assert metrics_path.read_text().startswith('target,42,')
+
+
+def test_injected_lightcurve_plot_narrates_output_only_when_verbose(tmp_path, monkeypatch, capsys):
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    from PIL import Image
+    from tdpy.verbosity import print as verbosity_print
+
+    path = ROOT / 'injections.py'
+    verbosity_print(f'Reading from {path}...')
+    source = path.read_text(encoding='utf-8')
+    function = next(
+        node for node in ast.parse(source).body
+        if isinstance(node, ast.FunctionDef) and node.name == 'inject_transit'
+    )
+
+    class LightCurve:
+        def __init__(self, time, flux):
+            self.time = time
+            self.flux = flux
+
+        def scatter(self):
+            plt.scatter(self.time, self.flux)
+
+    namespace = {
+        'Path': Path,
+        'generate_lightcurve': lambda **kwargs: (
+            np.array([0.0, 1.0]), np.array([1.0, 0.99]), 0.0
+        ),
+        'lk': SimpleNamespace(LightCurve=LightCurve),
+        'plt': plt,
+        'print': verbosity_print,
+    }
+    exec(compile(ast.Module(body=[function], type_ignores=[]), str(path), 'exec'), namespace)
+    inject_transit = namespace['inject_transit']
+    light_curve = {'flux': SimpleNamespace(value=np.ones(2))}
+
+    monkeypatch.setenv('TDPY_VERBOSITY', '0')
+    inject_transit('tic', light_curve, np.array([0.0, 1.0]), ID='quiet', folder=str(tmp_path))
+    assert capsys.readouterr().out == ''
+
+    output_path = tmp_path / 'quiet_injectedlc.png'
+    with Image.open(output_path) as image:
+        assert image.format == 'PNG'
+        assert image.width > 0 and image.height > 0
+
+    monkeypatch.setenv('TDPY_VERBOSITY', '1')
+    inject_transit('tic', light_curve, np.array([0.0, 1.0]), ID='logged', folder=str(tmp_path))
+    logged_path = tmp_path / 'logged_injectedlc.png'
+    assert capsys.readouterr().out == f'Writing to {logged_path}...\n'
+    with Image.open(logged_path) as image:
+        assert image.format == 'PNG'
+        assert image.width > 0 and image.height > 0
+
+
+def test_injection_mass_default_and_kepler_scale_use_solar_units():
+    path = ROOT / 'injections.py'
+    print(f'Reading from {path}...')
+    source = path.read_text(encoding='utf-8')
+    definitions = [
+        node for node in ast.parse(source).body
+        if isinstance(node, ast.FunctionDef) and node.name in {'calc_a', 'inject_transit'}
+    ]
+    namespace = {'np': np, 'SOLAR_MASS_KG': 2 * 10**30}
+    exec(compile(ast.Module(body=definitions, type_ignores=[]), str(path), 'exec'), namespace)
+
+    mass_default = inspect.signature(namespace['inject_transit']).parameters['mass_star'].default
+    assert mass_default == pytest.approx(0.6)
+    assert namespace['calc_a'](1.0, 365.25) == pytest.approx(1.496e11, rel=0.005)
+
+
+def test_minimum_transit_inclination_uses_consistent_si_lengths():
+    path = ROOT / 'injections.py'
+    print(f'Reading from {path}...')
+    source = path.read_text(encoding='utf-8')
+    function = next(
+        node for node in ast.parse(source).body
+        if isinstance(node, ast.FunctionDef) and node.name == 'minimum_transit_inclination'
+    )
+    namespace = {'np': np}
+    exec(compile(ast.Module(body=[function], type_ignores=[]), str(path), 'exec'), namespace)
+
+    inclination = namespace['minimum_transit_inclination'](6.9e6, 6.371e6, 6.8e9)
+
+    assert inclination == pytest.approx(89.888, abs=0.001)
+
+
+def test_injection_runners_use_shared_si_transit_geometry():
+    for name in ('main.py', 'sampleBLS.py', 'main_parallel.py'):
+        path = ROOT / name
+        print(f'Reading from {path}...')
+        source = path.read_text(encoding='utf-8')
+        assert 'minimum_transit_inclination' in source
+        assert 'EARTH_RADIUS_M' in source
+        assert 'radius_planet = r_p * EARTH_RADIUS_M / SOLAR_RADIUS_M' in source
+        assert 'np.arccos((0.01+r_p)/a)' not in source
+
+
+def test_sample_bls_narrates_its_direct_file_operations():
+    path = ROOT / 'sampleBLS.py'
+    print(f'Reading from {path}...')
+    source = path.read_text(encoding='utf-8')
+
+    assert 'from tdpy.verbosity import print' in source
+    assert "catalog_path = Path('data_inputs/tess_targets_data_old.csv')" in source
+    assert "print(f'Reading from {catalog_path}...')" in source
+    assert 'df = pd.read_csv(catalog_path)' in source
+    assert "output_path = Path('sampleBLS') / f'Folded_LC_TIC_{tic_id}.png'" in source
+    assert "print(f'Writing to {output_path}...')" in source
+    assert 'plt.savefig(output_path, dpi=300)' in source
+
+
+def test_wdcandidatedata_narrates_direct_file_operations():
+    path = ROOT / 'datavis_scripts' / 'wdcandidatedata.py'
+    print(f'Reading from {path}...')
+    source = path.read_text(encoding='utf-8')
+
+    assert 'from tdpy.verbosity import print, tqdm' in source
+    assert "fits_path = Path('gaiaedr3_wd_main.fits')" in source
+    assert "print(f'Reading from {fits_path}...')" in source
+    assert "progress_path = Path('albus/albus/data_inputs/wd_progress.json')" in source
+    assert "print(f'Reading from {progress_path}...')" in source
+    assert source.count("print(f'Writing to {output_path}...')") == 4
+    assert source.count('plt.savefig(output_path') == 4
 
 
 @pytest.fixture
@@ -863,7 +989,7 @@ def test_serial_catalog_helpers_import_without_data_reads_or_writes(progress_fil
 
 @pytest.mark.parametrize('progress_state', ['missing', 'existing', 'existing_no_csv', 'invalid', 'pending', 'failed', 'missing_status', 'tic_outage', 'tess_outage', 'duplicate_rows', 'rounded_duplicates'])
 @pytest.mark.parametrize('script', ['readfits.py', 'readfits_parallel.py'])
-def test_actual_catalog_workflows_preserve_fits_csv_and_progress_outputs(progress_files, tmp_path, progress_state, script):
+def test_actual_catalog_workflows_preserve_fits_csv_and_progress_outputs(progress_files, tmp_path, progress_state, script, capsys, monkeypatch):
     input_file = tmp_path / 'input.fits'
     source_data = Table({'ra': [10.0, 11.0, 12.0, 13.0], 'dec': [-20.0, -21.0, -22.0, -23.0], 'Pwd': [0.99, 0.98, 0.89, 0.99], 'bright_N_flag': [0, 0, 0, 1]})
     duplicate = progress_state in ('duplicate_rows', 'rounded_duplicates')
@@ -901,7 +1027,10 @@ def test_actual_catalog_workflows_preserve_fits_csv_and_progress_outputs(progres
     path = ROOT / script
     print(f'Reading from {path}...')
     tree = ast.parse(path.read_text())
-    imports = [node for node in tree.body if isinstance(node, ast.ImportFrom) and node.module == 'progress_io']
+    imports = [
+        node for node in tree.body
+        if isinstance(node, ast.ImportFrom) and node.module in {'progress_io', 'tdpy.verbosity'}
+    ]
     definitions = [node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name in {'save_progress', 'load_json', 'save_json', 'load_csv_seen', 'key_ra6dec6_from_vals'}]
     guard = next(node for node in tree.body if isinstance(node, ast.If) and isinstance(node.test, ast.Compare) and isinstance(node.test.left, ast.Name) and node.test.left.id == '__name__')
     query_error = importlib.import_module('catalog_values').CatalogQueryError
@@ -932,7 +1061,13 @@ def test_actual_catalog_workflows_preserve_fits_csv_and_progress_outputs(progres
         'tqdm': lambda values, **kwargs: values,
     }
 
+    monkeypatch.setenv('TDPY_VERBOSITY', '1')
     exec(compile(ast.Module(body=imports + definitions + [guard], type_ignores=[]), str(path), 'exec'), namespace)
+    output = capsys.readouterr().out
+    assert f'Reading from {input_file}...' in output
+    if progress_state != 'existing':
+        assert f'Writing to {bright_csv}...' in output
+    assert f'Writing to {faint_csv}...' in output
 
     expected_queries = [call(11.0, -21.0)] if progress_state in ('existing', 'existing_no_csv') else [call(selected_first_ra, selected_first_dec), call(11.0, -21.0)]
     assert query.call_count == len(expected_queries)

@@ -87,7 +87,6 @@ ax1.axvline(best_thr, linestyle="--", alpha=0.6, label=f"Best F1 Threshold: {bes
 ax1.set_xlabel("Detection Threshold (SNR)")
 ax1.set_ylabel("Score")
 ax1.set_title("Precision & Recall vs Detection Threshold")
-ax1.grid(True, alpha=0.25)
 ax1.set_xscale("log")
 ax1.legend()
 fig1.tight_layout()
@@ -109,7 +108,6 @@ ax2.scatter(R[best_idx], P[best_idx], s=30, color="red", label=f"Best F1 Point: 
 ax2.set_xlabel("Recall")
 ax2.set_ylabel("Precision")
 ax2.set_title("Precision–Recall Curve")
-ax2.grid(True, alpha=0.25)
 ax2.legend()
 fig2.tight_layout()
 output_path = "data_outputs/run6poster/precision_recall_curve.png"
@@ -134,7 +132,6 @@ ax3.set_xlabel("SNR")
 ax3.set_ylabel("Density")
 ax3.set_title("SNR Distribution")
 ax3.set_xscale("log"); ax3.set_yscale("log")
-ax3.grid(True, alpha=0.25)
 ax3.legend()
 fig3.tight_layout()
 output_path = "data_outputs/run6poster/snr_histograms.png"

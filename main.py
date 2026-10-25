@@ -7,7 +7,7 @@ from matplotlib import pyplot as plt
 from paths import get_repository_path
 from tdpy.verbosity import print, tqdm
 from preprocess import preprocess, find_light_curve as _select_light_curve
-from injections import inject_transit
+from injections import EARTH_RADIUS_M, SOLAR_RADIUS_M, inject_transit, minimum_transit_inclination
 from injection_sampling import sample_power_law
 from BLSFit import BLSfit, BLSResults, FoldedLC
 from BLStests import test_depth, test_v_shape, test_snr, test_out_of_transit_variability
@@ -31,7 +31,7 @@ except FileNotFoundError:
 next_id = (max(out_ids) + 1) if out_ids else 0
 
 # samples = 400
-G = 6.67e-11
+G = 6.67e-11  # [m^3 kg^-1 s^-2]
 
 def find_light_curve():
     return _select_light_curve(df, rng=random, preprocess_func=preprocess, verbose=True)
@@ -96,20 +96,20 @@ while True:
         print("Could not get a valid light curve after retries; continuing to next sample.")
         continue
     tic_id, lc, massH, m_s, r_s, e_r_s = star_info
-    print(f"Using TIC {tic_id}: r_s={r_s/6.957e+8:.3f} R_sun")
+    print(f"Using TIC {tic_id}: r_s={r_s/SOLAR_RADIUS_M:.3f} R_sun")
 
-    r_p = float(sample_power_law(0.5, 5, 1.5)) # Earth Radii
-    rho = 1186*r_p**0.4483 if r_p < 2.5 else 2296*r_p**-1.413
+    r_p = float(sample_power_law(0.5, 5, 1.5))  # [R_earth]
+    rho = 1186*r_p**0.4483 if r_p < 2.5 else 2296*r_p**-1.413  # [kg m^-3]
     
-    roche = np.cbrt((3/2) * np.pi * m_s / rho)
-    a_min = 0.5 * roche
-    a_max = 10.5 * roche
+    roche = np.cbrt((3/2) * np.pi * m_s / rho)  # [m]
+    a_min = 0.5 * roche  # [m]
+    a_max = 10.5 * roche  # [m]
 
     a = None
-    P_days = None
+    P_days = None  # [day]
     for _ in range(10):
-        a_try = np.random.uniform(a_min, a_max)
-        P_try = np.sqrt((4*np.pi**2 * a_try**3) / (G * m_s)) / (24*3600)
+        a_try = np.random.uniform(a_min, a_max)  # [m]
+        P_try = np.sqrt((4*np.pi**2 * a_try**3) / (G * m_s)) / (24*3600)  # [day]
         if P_try <= 15: # Filter max of 15 days
             a = a_try
             P_days = P_try
@@ -118,10 +118,10 @@ while True:
         print("Could not find an 'a' with P<=15 d within 10 tries; skipping this star.")
         continue
 
-    x = np.clip((0.01 + r_p)/a, -1.0, 1.0)
-    inc_min = np.degrees(np.arccos(x))
+    radius_planet_m = r_p * EARTH_RADIUS_M  # [m]
+    inc_min = minimum_transit_inclination(r_s, radius_planet_m, a)  # [deg]
     # inc = 90 - (k * (90 - inc_min) / res)           # Inclination from 90 to i_min degrees
-    inc = np.random.uniform(inc_min, 90)
+    inc = np.random.uniform(inc_min, 90)  # [deg]
 
     # print(f"radius of white dwarf: {r_s / 6.957e+8}")
 
@@ -133,9 +133,9 @@ while True:
     # Inject transit
     try:
         inj = inject_transit(tic_id, lc, lc['time'].value,
-                    radius_star = r_s / 6.957e+8,   # radius of white dwarf in Solar radii
+                    radius_star = r_s / SOLAR_RADIUS_M,  # [R_sun]
                     mass_star = massH,              # mass of white dwarf in Solar masses
-                    radius_planet = r_p * 0.01,     # radius of planet in Solar radii
+                    radius_planet = r_p * EARTH_RADIUS_M / SOLAR_RADIUS_M,  # [R_sun]
                     albedo_planet=0.1, 
                     period=P_days,
                     inclination=inc,

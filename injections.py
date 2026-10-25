@@ -2,12 +2,26 @@ import batman
 import numpy as np
 import lightkurve as lk
 import matplotlib.pyplot as plt
+from pathlib import Path
+
+from tdpy.verbosity import print
+
+SOLAR_MASS_KG = 2 * 10**30  # [kg / M_sun]
+SOLAR_RADIUS_M = 6.957 * 10**8  # [m / R_sun]
+EARTH_RADIUS_M = 6.371e6  # [m]
+
+
+def minimum_transit_inclination(radius_star_m, radius_planet_m, semimajor_axis_m):
+    """Return the grazing transit inclination for lengths in meters, in degrees."""
+    transit_cosine_limit = (radius_star_m + radius_planet_m) / semimajor_axis_m  # [dimensionless]
+    return np.degrees(np.arccos(np.clip(transit_cosine_limit, -1.0, 1.0)))  # [deg]
+
 
 def calc_a(mass_star, period_days):
-    mass_star_kg = mass_star * 2 * 10**30
-    period_seconds = period_days * 24 * 3600
-    a = ((6.6743 * 10**-11 * mass_star_kg * period_seconds**2) / (4 * np.pi**2)) ** (1/3)
-    return a # in meters
+    mass_star_kg = mass_star * SOLAR_MASS_KG  # [kg]
+    period_seconds = period_days * 24 * 3600  # [s]
+    a = ((6.6743 * 10**-11 * mass_star_kg * period_seconds**2) / (4 * np.pi**2)) ** (1/3)  # [m]
+    return a
 
 def generate_lightcurve(
     radius_star,                # Radius of the star (in Solar radii)
@@ -21,13 +35,14 @@ def generate_lightcurve(
     time_array,
     a=None):                # Semi-major axis (optional, calculated if not provided)
     
-    star_radius_m = radius_star * 6.957*10**8  # Solar radius to meters
-    planet_radius_m = radius_planet * 6.957*10**8  # Solar radius to meters
+    star_radius_m = radius_star * SOLAR_RADIUS_M  # [m]
+    planet_radius_m = radius_planet * SOLAR_RADIUS_M  # [m]
 
     # Create a time array
-    if isinstance(time_array, float): 
-        time = np.array([time_array])
-    else: time = np.array(time_array)
+    if isinstance(time_array, float):
+        time = np.array([time_array])  # [day]
+    else:
+        time = np.array(time_array)  # [day]
 
     if a is None:
         a = calc_a(mass_star, period)
@@ -41,16 +56,16 @@ def generate_lightcurve(
         params.t0 = time   # Mid-transit time
     else: 
         params.t0 = min(time)
-    params.per = period                         # Planet orbital period
+    params.per = period                         # [day]
     params.rp = planet_radius_m/star_radius_m   # Planet radius IN STELLAR RADII (NOT SUN)
     params.a = a/star_radius_m                  # Semi-major axis in STELLAR RADII (NOT SUN)
-    params.inc = inclination                    # Inclination in degrees
+    params.inc = inclination                    # [deg]
     params.ecc = 0                              # Eccentricity
-    params.w = 90                               # Longitude of periastron (unused for circular orbits)
+    params.w = 90                               # [deg]
     params.u = []                               # Limb-darkening coefficients
     params.fp = albedo_planet                       # Planet flux ratio
     params.limb_dark = "uniform"                # Limb-darkening model
-    params.t_secondary = 0.5                    # Time of secondary eclipse
+    params.t_secondary = 0.5                    # [orbital phase]
 
     # Generate the light curve model
     m = batman.TransitModel(params, time, transittype='primary')
@@ -69,7 +84,7 @@ def generate_lightcurve(
     #     tduration = 0
     # else:   
     #     tduration = (period/np.pi)*np.arcsin((star_radius_m+planet_radius_m)/a + np.sqrt(1 - b**2))
-    tduration = 0
+    tduration = 0  # [day]
 
     # tess_time = np.arange(0, time[-1], 120/(24*3600))
     # tess_flux = np.interp(tess_time, time, flux)
@@ -79,13 +94,13 @@ def generate_lightcurve(
 
 def inject_transit(
         tic_id, lc, time_array,
-        radius_star = 0.01, 
-        mass_star = 0.6 * 2 * 10**30, 
-        radius_planet = 0.1, 
+        radius_star = 0.01,  # [R_sun]
+        mass_star = 0.6,  # [M_sun]
+        radius_planet = 0.1,  # [R_sun]
         albedo_planet=0.1, 
-        period=1, 
-        inclination=90,
-        a = None,
+        period=1,  # [day]
+        inclination=90,  # [deg]
+        a=None,  # [m]
         ID='', folder=''):
     
     ttime, tflux, tduration = generate_lightcurve(
@@ -108,7 +123,9 @@ def inject_transit(
         plt.xlabel("Time (days)")
         plt.ylabel("Relative Flux")
         plt.title(f"ID {ID} with TIC {tic_id} Light Curve")
-        plt.savefig(f'{folder}/{ID}_injectedlc.png')
+        output_path = Path(folder) / f'{ID}_injectedlc.png'
+        print(f'Writing to {output_path}...')
+        plt.savefig(output_path)
         plt.close()
 
 

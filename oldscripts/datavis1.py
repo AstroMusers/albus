@@ -23,7 +23,6 @@ for ax, param, label in zip(axes, params, labels):
     ax.plot(grp.index, grp.values, marker='o')
     ax.set_xlabel(label)
     ax.set_title(f'Avg SNR vs {label}')
-    ax.grid(True)
 axes[0].set_ylabel('Average SNR')
 fig.tight_layout()
 plt.show()

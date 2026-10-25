@@ -6,7 +6,7 @@ import astropy.units as u
 from astroquery.mast import Catalogs, Observations
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from threading import Semaphore
-from tqdm import tqdm
+from tdpy.verbosity import print, tqdm
 import csv, os, json, time, random
 import numpy as np
 from math import isfinite
@@ -154,6 +154,7 @@ def has_tess_lightcurve(tic_id=None, ra_deg=None, dec_deg=None):
 # --------------- main ---------------------
 if __name__ == "__main__":
     # Load GAIA and apply static cuts
+    print(f'Reading from {INPUT_FITS}...')
     with fits.open(INPUT_FITS) as hdul:
         data = hdul[1].data
     names = data.names
@@ -169,9 +170,11 @@ if __name__ == "__main__":
 
     # Ensure CSVs exist with headers
     if not os.path.exists(CSV_BRIGHT_LC):
+        print(f'Writing to {CSV_BRIGHT_LC}...')
         with open(CSV_BRIGHT_LC, 'w', newline='') as f:
             csv.writer(f).writerow(['ra_deg', 'dec_deg', 'tic_id', 'Tmag'])
     if not os.path.exists(CSV_FAINT_LC):
+        print(f'Writing to {CSV_FAINT_LC}...')
         with open(CSV_FAINT_LC, 'w', newline='') as f:
             csv.writer(f).writerow(['ra_deg', 'dec_deg', 'tic_id', 'Tmag'])
 

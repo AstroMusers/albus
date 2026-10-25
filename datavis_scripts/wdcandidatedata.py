@@ -3,12 +3,15 @@ import json
 import numpy as np
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
+from pathlib import Path
 from collections import Counter
-from tqdm import tqdm
+from tdpy.verbosity import print, tqdm
 
 
 # Open the FITS file
-with fits.open('gaiaedr3_wd_main.fits') as hdul:
+fits_path = Path('gaiaedr3_wd_main.fits')
+print(f'Reading from {fits_path}...')
+with fits.open(fits_path) as hdul:
     # Print the header of the primary HDU (first extension)
     # print(hdul[0].header)
 
@@ -17,7 +20,9 @@ with fits.open('gaiaedr3_wd_main.fits') as hdul:
     
 
     # Load the JSON file
-    with open('albus/albus/data_inputs/wd_progress.json', 'r') as f:
+    progress_path = Path('albus/albus/data_inputs/wd_progress.json')
+    print(f'Reading from {progress_path}...')
+    with progress_path.open('r') as f:
         data = json.load(f)
     print(f"Loaded {len(data)} entries from JSON.")
 
@@ -50,7 +55,9 @@ with fits.open('gaiaedr3_wd_main.fits') as hdul:
     plt.title('Category Occurrences')
     plt.xticks(rotation=45)
     plt.tight_layout()
-    plt.savefig('albus/albus/graphics/candidate_lc_histograms')
+    output_path = Path('albus/albus/graphics/candidate_lc_histograms')
+    print(f'Writing to {output_path}...')
+    plt.savefig(output_path)
 
     # Plot histograms for "no_lc" and "lc_combined" categories
     categories_to_plot = ["no_lc", "lc_combined"]
@@ -68,7 +75,9 @@ with fits.open('gaiaedr3_wd_main.fits') as hdul:
     # Set common x-axis label
     plt.xlabel('Tmag')
     plt.tight_layout()
-    plt.savefig('albus/albus/graphics/tmag_histograms_no_lc_and_lc_combined.png')
+    output_path = Path('albus/albus/graphics/tmag_histograms_no_lc_and_lc_combined.png')
+    print(f'Writing to {output_path}...')
+    plt.savefig(output_path)
 
     # Update categories and Tmag values after combining
     categories = []
@@ -131,7 +140,9 @@ with fits.open('gaiaedr3_wd_main.fits') as hdul:
         ax[i, 0].set_title(f'Scatter Plot of RA and Dec for Category: {category}')
     plt.legend()
     plt.tight_layout()
-    plt.savefig('albus/albus/graphics/scatter_plot_ra_dec_by_category.png')
+    output_path = Path('albus/albus/graphics/scatter_plot_ra_dec_by_category.png')
+    print(f'Writing to {output_path}...')
+    plt.savefig(output_path)
 
     def ra_to_lon_deg(ra_array):
         ra = np.asarray(ra_array, dtype=float)
@@ -162,7 +173,9 @@ with fits.open('gaiaedr3_wd_main.fits') as hdul:
         ax[i].legend()
         ax[i].set_title(f"Celestial Sphere (Mollweide) - {category}")
         plt.tight_layout()
-    plt.savefig('albus/albus/graphics/mollweide_ra_dec_by_category.png', dpi=200)
+    output_path = Path('albus/albus/graphics/mollweide_ra_dec_by_category.png')
+    print(f'Writing to {output_path}...')
+    plt.savefig(output_path, dpi=200)
 
     # To print information about all HDUs in the file
     # hdul.info()
