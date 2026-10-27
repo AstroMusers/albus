@@ -1,5 +1,5 @@
 """
-Classifier Performance Visualization (Pos/Neg CSVs) — v2
+Classifier Performance Visualization (Pos/Neg CSVs) – v2
 
 Changes vs previous version:
 - Uses inclination directly (no impact parameter).
@@ -126,7 +126,7 @@ def corner_heatmap(params: Dict[str, np.ndarray],
     if mappable is not None:
         fig.colorbar(mappable, cax=cax, label=metric)
 
-    fig.suptitle(f'Corner Heatmap — {metric.capitalize()}', y=0.995)
+    fig.suptitle(f'Corner Heatmap – {metric.capitalize()}', y=0.995)
     plt.tight_layout(rect=[0.02, 0.02, 0.90, 0.97])
     apply_plot_theme(fig, typeplotback)
     _save_figure(fig, out_path)

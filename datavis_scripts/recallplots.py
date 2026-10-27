@@ -2,7 +2,7 @@
 # and call subplot_mosaic(..., empty_sentinel='.') to avoid version issues.
 
 """
-Classifier Performance Visualization (Pos/Neg CSVs) — v6
+Classifier Performance Visualization (Pos/Neg CSVs) – v6
 
 Fix:
 - `subplot_mosaic` now uses an explicit empty sentinel '.' to avoid
@@ -369,7 +369,7 @@ def corner_heatmap(params: Dict[str, np.ndarray],
         cax = fig.add_axes([0.92, 0.10, 0.02, 0.80])
         fig.colorbar(mappable, cax=cax, label=cbar_label)
 
-    fig.suptitle(f'Corner Heatmap — {metric.capitalize()}' + (f' — {title_suffix}' if title_suffix else ""))
+    fig.suptitle(f'Corner Heatmap – {metric.capitalize()}' + (f' – {title_suffix}' if title_suffix else ""))
     apply_plot_theme(fig, typeplotback)
     _save_figure(fig, out_path)
     plt.close(fig)

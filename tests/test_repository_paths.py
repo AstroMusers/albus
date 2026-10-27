@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 from paths import get_data_path, get_repository_path, get_visuals_path
@@ -13,3 +14,11 @@ def test_repository_paths_use_configured_root(monkeypatch, tmp_path):
 def test_repository_path_defaults_to_checkout(monkeypatch):
     monkeypatch.delenv("ALBUS_PATH", raising=False)
     assert get_repository_path() == Path(__file__).resolve().parents[1]
+
+
+def test_repository_path_repairs_blank_environment_value(monkeypatch):
+    monkeypatch.setenv("ALBUS_PATH", " ")
+    default_path = Path(__file__).resolve().parents[1]
+
+    assert get_repository_path() == default_path
+    assert os.environ["ALBUS_PATH"] == str(default_path)

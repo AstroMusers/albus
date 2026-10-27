@@ -4,12 +4,57 @@
 # albus
 We use Albus to test whether a planet crossing a white dwarf leaves a recognizable transit in its light curve. We inject simulated transits and analyze them with [Astropy](https://github.com/astropy/astropy), [batman](https://github.com/lkreidberg/batman), and [Lightkurve](https://github.com/lightkurve/lightkurve).
 
+## Shared analysis with Miletos
+
+We use [Miletos](https://github.com/tansudaylan/miletos) for native light-curve
+normalization and detrending, the fixed-grid BLS fit, candidate ranking,
+periodogram and folded-curve plots, and unit-aware transit masks. We also import
+transit measurements, the quantile-depth estimator, BATMAN injections, orbital
+geometry, and bounded power-law sampling from Miletos. Our existing
+`preprocess()`, `BLSfit()`, `BLSResults()`, `FoldedLC()`, measurement, and injection
+interfaces remain available. Candidate ordering, fitted ephemerides,
+uncertainties, and plot options retain their conventions. Light curves now
+use Miletos's native container and BLS returns Astropy results with the fitted
+parameter attributes used by our drivers. The BLS fit retains its 2,048
+logarithmically spaced periods between 1 and 10 days and its likelihood
+objective. It does not switch to the automatic-grid, maximum-SNR search.
+
+Install both updated checkouts together. From this repository in the shared
+workspace, use
+
+```sh
+python -m pip install -e '../../tansudaylan/miletos'
+```
+
+Elsewhere, replace that path with the updated Miletos checkout. Miletos has no
+Lightkurve dependency. Lightkurve can be installed separately for
+`miletos.benchmarks.compare_lightkurve_bls`, which compares the native fit
+with the external implementation. TESS retrieval uses Astroquery and native
+FITS reading. Albus keeps our
+white-dwarf target selection, fixed-density radius approximation, catalog and
+resume handling, experiment drivers, CSV formats, and population figures.
+The compatibility modules import the shared functions rather than maintaining
+independent numerical implementations. `BLSfit()` retains a short adapter for
+its existing `flatlc` keyword.
+
+The shared BATMAN calculation retains our original constants, uniform stellar
+disk, circular orbit, first-sample transit epoch, median normalization, and
+zero-duration placeholder. Injected curves retain missing uncertainties.
+Transit SNR remains mean depth divided by the out-of-transit population scatter,
+without a square-root sample-count factor. The older scripts in `oldscripts/`
+retain their different model and search assumptions. The archived injection
+script imports the shared Kepler calculation with its original kilogram inputs.
+
+Collection preprocessing retains the original median filter and its treatment
+of reported errors. The previously unused `flatten()` calculation is omitted.
+
 ## Synthetic BLS example
 
 The [synthetic BLS notebook](examples/synthetic_bls_pipeline.ipynb) sends a
 seeded toy transit through `BLSfit()`, `BLSResults()`, and `FoldedLC()`, then
 saves the periodogram and folded curve under `examples/visuals/`. Run it with a
-Python environment that includes Lightkurve and TDpy. With the fixed seed, the
+Python environment that includes the updated Miletos and TDpy. The archived
+notebook also imports Lightkurve for constructing its synthetic input. With the fixed seed, the
 notebook recovers a 3.4-day injected period at 3.4002 days. This example
 demonstrates period recovery on synthetic input. It does not measure planet yield
 or survey completeness.
@@ -53,7 +98,7 @@ and produces an empty mask.
 Extracted best-fit periods and transit durations retain their supplied units.
 Empty in-transit selections yield `NaN` depth estimates. SNR is undefined when
 either sample set is empty, and out-of-transit scatter is `NaN` without baseline
-samples. These cases do not fabricate zero depths or noise estimates.
+samples.
 
 We select BLS period candidates before rendering. Disabling, showing, or saving
 the periodogram plot returns the same candidates and best-fit transit parameters.
@@ -76,7 +121,7 @@ Unbinned calls return the folded curve when `output=True`.
 `BLSResults()` and `FoldedLC()` use white backgrounds with black axes by default.
 Pass `typeplotback='dark'` for black backgrounds with white axes. Both classifier
 plotting scripts accept `--typeplotback dark`, including the older workflow's
-error histograms and corner plots. These plotting helpers require TDpy.
+error histograms and corner plots.
 
 We treat masked, nonfinite, and unreadable TIC magnitudes as missing values.
 Serial matching keeps its first-result policy, while parallel matching prefers

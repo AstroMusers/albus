@@ -232,7 +232,7 @@ for i in range(k):
         if i == k-1:
             ax.set_xlabel(params[j])
 
-plt.suptitle("Corner: Parameter Correlations & Detection (Injected Only)", y=0.92)
+plt.suptitle("Corner Plot, Parameter Correlations & Detection (Injected Only)", y=0.92)
 plt.tight_layout(rect=[0,0,1,0.95])
 output_path = "data_outputs/run6poster/corner_parameters.png"
 print(f"Writing to {output_path}...")

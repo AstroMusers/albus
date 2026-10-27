@@ -2,11 +2,7 @@ import batman
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
-
-def calc_a(mass_star, period_days):
-    period_seconds = period_days * 24 * 3600
-    a = ((6.6743 * 10**-11 * mass_star * period_seconds**2) / (4 * np.pi**2)) ** (1/3)
-    return a # in meters
+from miletos.simulation import semimajor_axis_from_mass_kg as calc_a
 
 def generate_lightcurve(
     radius_star,            # Radius of the star (in solar radii)

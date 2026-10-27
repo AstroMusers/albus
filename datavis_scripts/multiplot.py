@@ -151,7 +151,7 @@ ax = axes[1,0]
 mesh1 = ax.pcolormesh(xp_edges, yp_edges, sm_rp, shading='auto', norm=colors.LogNorm())
 ax.set_xlabel(r'Radius Ratio ($R_{\mathrm{J}} / R_{\mathrm{*}}$)')
 ax.set_ylabel('Period (days)')
-ax.set_title('Heatmap: Radius Ratio vs Period (avg SNR)')
+ax.set_title('Radius Ratio vs Period (average SNR)')
 cbar1 = fig.colorbar(mesh1, ax=ax, fraction=0.046, pad=0.04)
 cbar1.set_label('Average SNR (log scale)')
 
@@ -160,7 +160,7 @@ ax = axes[1,1]
 mesh2 = ax.pcolormesh(pp_edges, pi_edges, sm_pi, shading='auto', norm=colors.LogNorm())
 ax.set_xlabel('Period (days)')
 ax.set_ylabel('Inclination (deg)')
-ax.set_title('Heatmap: Period vs Inclination (avg SNR)')
+ax.set_title('Period vs Inclination (average SNR)')
 cbar2 = fig.colorbar(mesh2, ax=ax, fraction=0.046, pad=0.04)
 cbar2.set_label('Average SNR (log scale)')
 
@@ -169,11 +169,11 @@ ax = axes[1,2]
 mesh3 = ax.pcolormesh(xi_edges, xr_edges, sm_ri.T, shading='auto', norm=colors.LogNorm())  # Transpose the grid for correct orientation
 ax.set_xlabel('Inclination (deg)')
 ax.set_ylabel(r'Radius Ratio ($R_{\mathrm{J}} / R_{\mathrm{*}}$)')
-ax.set_title('Heatmap: Inclination vs Radius Ratio (avg SNR)')
+ax.set_title('Inclination vs Radius Ratio (average SNR)')
 cbar3 = fig.colorbar(mesh3, ax=ax, fraction=0.046, pad=0.04)
 cbar3.set_label('Average SNR (log scale)')
 
-plt.suptitle('SNR vs Parameters — 1D and 2D summaries', fontsize=16, y=0.98)
+plt.suptitle('SNR vs Parameters – 1D and 2D summaries', fontsize=16, y=0.98)
 plt.tight_layout(rect=[0,0,1,0.96])
 output_path = 'data_outputs/run6analysis/snr_vs_parameters_smooth_summary6.png'
 print(f"Writing to {output_path}...")

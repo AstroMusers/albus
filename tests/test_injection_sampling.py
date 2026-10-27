@@ -101,13 +101,8 @@ def test_injected_lightcurve_plot_narrates_output_only_when_verbose(tmp_path, mo
     from PIL import Image
     from tdpy.verbosity import print as verbosity_print
 
-    path = ROOT / 'injections.py'
-    verbosity_print(f'Reading from {path}...')
-    source = path.read_text(encoding='utf-8')
-    function = next(
-        node for node in ast.parse(source).body
-        if isinstance(node, ast.FunctionDef) and node.name == 'inject_transit'
-    )
+    from injections import inject_transit
+    from miletos import simulation
 
     class LightCurve:
         def __init__(self, time, flux):
@@ -117,17 +112,10 @@ def test_injected_lightcurve_plot_narrates_output_only_when_verbose(tmp_path, mo
         def scatter(self):
             plt.scatter(self.time, self.flux)
 
-    namespace = {
-        'Path': Path,
-        'generate_lightcurve': lambda **kwargs: (
+    monkeypatch.setattr(simulation, 'generate_batman_light_curve', lambda **kwargs: (
             np.array([0.0, 1.0]), np.array([1.0, 0.99]), 0.0
-        ),
-        'lk': SimpleNamespace(LightCurve=LightCurve),
-        'plt': plt,
-        'print': verbosity_print,
-    }
-    exec(compile(ast.Module(body=[function], type_ignores=[]), str(path), 'exec'), namespace)
-    inject_transit = namespace['inject_transit']
+        ))
+    monkeypatch.setitem(sys.modules, 'lightkurve', SimpleNamespace(LightCurve=LightCurve))
     light_curve = {'flux': SimpleNamespace(value=np.ones(2))}
 
     monkeypatch.setenv('TDPY_VERBOSITY', '0')
@@ -149,33 +137,17 @@ def test_injected_lightcurve_plot_narrates_output_only_when_verbose(tmp_path, mo
 
 
 def test_injection_mass_default_and_kepler_scale_use_solar_units():
-    path = ROOT / 'injections.py'
-    print(f'Reading from {path}...')
-    source = path.read_text(encoding='utf-8')
-    definitions = [
-        node for node in ast.parse(source).body
-        if isinstance(node, ast.FunctionDef) and node.name in {'calc_a', 'inject_transit'}
-    ]
-    namespace = {'np': np, 'SOLAR_MASS_KG': 2 * 10**30}
-    exec(compile(ast.Module(body=definitions, type_ignores=[]), str(path), 'exec'), namespace)
+    from injections import calc_a, inject_transit
 
-    mass_default = inspect.signature(namespace['inject_transit']).parameters['mass_star'].default
+    mass_default = inspect.signature(inject_transit).parameters['mass_star'].default
     assert mass_default == pytest.approx(0.6)
-    assert namespace['calc_a'](1.0, 365.25) == pytest.approx(1.496e11, rel=0.005)
+    assert calc_a(1.0, 365.25) == pytest.approx(1.496e11, rel=0.005)
 
 
 def test_minimum_transit_inclination_uses_consistent_si_lengths():
-    path = ROOT / 'injections.py'
-    print(f'Reading from {path}...')
-    source = path.read_text(encoding='utf-8')
-    function = next(
-        node for node in ast.parse(source).body
-        if isinstance(node, ast.FunctionDef) and node.name == 'minimum_transit_inclination'
-    )
-    namespace = {'np': np}
-    exec(compile(ast.Module(body=[function], type_ignores=[]), str(path), 'exec'), namespace)
+    from injections import minimum_transit_inclination
 
-    inclination = namespace['minimum_transit_inclination'](6.9e6, 6.371e6, 6.8e9)
+    inclination = minimum_transit_inclination(6.9e6, 6.371e6, 6.8e9)
 
     assert inclination == pytest.approx(89.888, abs=0.001)
 
@@ -547,37 +519,21 @@ def test_parallel_selector_forwards_retry_limit_and_explicit_rng(selector_namesp
 ])
 @pytest.mark.parametrize('injection', [False, True])
 @pytest.mark.parametrize('missing_errors', [False, True])
-def test_actual_preprocessor_uses_shared_flux_normalization_and_retains_uncertainties(unit, scale, injection, missing_errors):
-    path = ROOT / 'preprocess.py'
-    print(f'Reading from {path}...')
-    node = next(node for node in ast.parse(path.read_text()).body if isinstance(node, ast.FunctionDef) and node.name == 'preprocess')
+def test_actual_preprocessor_uses_shared_flux_normalization_and_retains_uncertainties(monkeypatch, unit, scale, injection, missing_errors):
+    from preprocess import preprocess
+    from miletos.light_curve import LightCurve
     time = Time('2026-10-17') + np.arange(3) * units.day
     flux = np.array([100.0, 101.0, 99.0]) * scale * unit
     error = np.full(3, np.nan) if missing_errors else np.array([2.0, 3.0, 4.0])
     flux_err = error * scale * unit
-    median = np.median(flux)
-    normalized = SimpleNamespace(flux=flux / median, flux_err=flux_err / median, time=time)
-    normalized.remove_outliers = Mock(return_value=normalized)
-    original = SimpleNamespace(flux=flux.copy(), flux_err=flux_err.copy(), time=time)
-    original.remove_nans = Mock(return_value=original)
-    original.flatten = Mock(return_value=original)
-    original.normalize = Mock(return_value=normalized)
+    original = LightCurve(time, flux.copy(), flux_err.copy())
     download = Mock(return_value=[original])
-    stitch = Mock(return_value=normalized)
-    construct = Mock(side_effect=lambda time, flux, flux_err: TimeSeries(time=time, data={'flux': flux, 'flux_err': flux_err}))
-    backend = SimpleNamespace(
-        search_lightcurve=Mock(return_value=SimpleNamespace(download_all=download)),
-        LightCurveCollection=Mock(return_value=SimpleNamespace(stitch=stitch)),
-        LightCurve=construct,
-    )
-    namespace = {'np': np, 'lk': backend, 'medfilt': Mock(return_value=np.ones(3))}
-    exec(compile(ast.Module(body=[node], type_ignores=[]), str(path), 'exec'), namespace)
+    monkeypatch.setattr('miletos.photometry.download_tess_light_curves', download)
+    monkeypatch.setattr('scipy.signal.medfilt', Mock(return_value=np.ones(3)))
 
-    result = namespace['preprocess'](123, injection=injection)
+    result = preprocess(123, injection=injection)
 
-    original.normalize.assert_called_once_with()
-    backend.search_lightcurve.assert_called_once_with('TIC 123', mission='TESS')
-    backend.LightCurveCollection.assert_called_once_with([normalized])
+    download.assert_called_once_with(123, tic_id=True)
     np.testing.assert_allclose(result['flux'], np.array([1.0, 1.01, 0.99]) - (1 if injection else 0))
     np.testing.assert_allclose(result['flux_err'], error / 100, equal_nan=True)
     assert result['flux_err'].unit == units.dimensionless_unscaled
@@ -1236,12 +1192,7 @@ def test_actual_catalog_retry_helpers_distinguish_failures_from_empty_results(mo
 
 @pytest.fixture
 def transit_mask():
-    path = ROOT / 'BLStests.py'
-    print(f'Reading from {path}...')
-    node = next(node for node in ast.parse(path.read_text()).body if isinstance(node, ast.FunctionDef) and node.name == 'create_transit_mask_manual')
-    namespace = {}
-    exec(compile(ast.Module(body=[node], type_ignores=[]), str(path), 'exec'), namespace)
-    return namespace['create_transit_mask_manual']
+    return importlib.import_module('BLStests').create_transit_mask_manual
 
 
 @pytest.mark.parametrize('unit', [units.day, units.hour, units.minute, units.s, units.ms])
@@ -1329,11 +1280,8 @@ def bls_helpers():
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
 
-    path = ROOT / 'BLSFit.py'
-    print(f'Reading from {path}...')
-    definitions = [node for node in ast.parse(path.read_text()).body if isinstance(node, ast.FunctionDef) and node.name in {'BLSfit', 'BLSResults', 'FoldedLC', 'BLSTestOutputs'}]
-    namespace = {'np': np, 'medfilt': medfilt, 'plt': plt, 'csv': csv}
-    exec(compile(ast.Module(body=definitions, type_ignores=[]), str(path), 'exec'), namespace)
+    module = importlib.import_module('BLSFit')
+    namespace = {name: getattr(module, name) for name in ('BLSfit', 'BLSResults', 'FoldedLC', 'BLSTestOutputs')}
     return namespace, plt
 
 
@@ -1375,9 +1323,11 @@ def test_main_testing_uses_canonical_paths_and_tdpy_output():
 
 
 def test_preprocess_routes_console_and_plot_paths_through_tdpy():
+    from miletos.photometry import prepare_lightkurve_collection
+
     path = ROOT / 'preprocess.py'
     print(f'Reading from {path}...')
-    source = path.read_text()
+    source = path.read_text() + inspect.getsource(prepare_lightkurve_collection)
 
     assert 'from tdpy.verbosity import print' in source
     assert source.count("print(f'Writing to {plot_path}...')") == 3
@@ -1430,7 +1380,9 @@ def test_actual_bls_candidate_selection_is_independent_of_plot_mode(bls_helpers,
     assert duration == periodogram.duration[20]
     assert show.call_count == int(mode == 'show')
     if mode == 'save':
-        filename = tmp_path / 'synthetic_blsplot.png'
+        files = list(tmp_path.glob('synthetic_blsplot*.png'))
+        assert len(files) == 1
+        filename = files[0]
         print(f'Reading from {filename}...')
         image = plt.imread(filename)
         assert image.shape[0] > 100 and image.shape[1] > 100
@@ -1469,7 +1421,9 @@ def test_actual_bls_keeps_distinct_strongest_detrended_peak(bls_helpers, monkeyp
     assert duration == periodogram.duration[raw_index]
     assert show.call_count == int(mode == 'show')
     if mode == 'save':
-        filename = tmp_path / 'distinct_blsplot.png'
+        files = list(tmp_path.glob('distinct_blsplot*.png'))
+        assert len(files) == 1
+        filename = files[0]
         print(f'Reading from {filename}...')
         image = plt.imread(filename)
         assert image.shape[0] > 100 and image.shape[1] > 100
@@ -1516,15 +1470,15 @@ def test_actual_bls_plot_skips_empty_summary_bins_without_changing_results(bls_h
     power[50] = 10.0
     result = SimpleNamespace(period=periods, power=power * units.dimensionless_unscaled, transit_time=np.zeros(101) * units.day, duration=periods * 0.01)
     captured = {}
-    original_plot = plt.semilogx
+    original_plot = plt.Axes.semilogx
 
-    def capture_plot(horizontal, vertical, *args, **kwargs):
-        if kwargs.get('label') == 'Median':
+    def capture_plot(axis, horizontal, vertical, *args, **kwargs):
+        if kwargs.get('label') == 'Binned median':
             captured['centers'] = np.asarray(horizontal)
             captured['medians'] = np.asarray(vertical)
-        return original_plot(horizontal, vertical, *args, **kwargs)
+        return original_plot(axis, horizontal, vertical, *args, **kwargs)
 
-    monkeypatch.setattr(plt, 'semilogx', capture_plot)
+    monkeypatch.setattr(plt.Axes, 'semilogx', capture_plot)
     expected = calculate(result, plot='')
     with warnings.catch_warnings():
         warnings.simplefilter('error')
@@ -1537,7 +1491,9 @@ def test_actual_bls_plot_skips_empty_summary_bins_without_changing_results(bls_h
     expected_centers = [np.median(periods.value[mask]) for mask in occupied if mask.any()]
     np.testing.assert_array_equal(captured['centers'], expected_centers)
     assert np.isfinite(captured['medians']).all()
-    filename = tmp_path / 'sparse_blsplot.png'
+    files = list(tmp_path.glob('sparse_blsplot*.png'))
+    assert len(files) == 1
+    filename = files[0]
     print(f'Reading from {filename}...')
     image = plt.imread(filename)
     assert image.shape[0] > 100 and image.shape[1] > 100
@@ -1549,24 +1505,23 @@ def test_actual_bls_plot_skips_empty_summary_bins_without_changing_results(bls_h
 @pytest.mark.parametrize('output', [False, True])
 @pytest.mark.parametrize('typeplotback', ['white', 'dark'])
 def test_actual_folded_curve_honors_plotting_and_preserves_return_contract(bls_helpers, monkeypatch, tmp_path, mode, binned, output, typeplotback):
-    """Check actual control flow with explicit Lightkurve interfaces and real plots."""
+    """Check native folded data, return conventions, and real saved plots."""
     from matplotlib.colors import to_rgba
     from tdpy.plotting import plot_background_colors
+    from miletos.light_curve import LightCurve
 
     namespace, plt = bls_helpers
     phase = np.linspace(-1.0, 1.0, 25)
     flux = np.ones(25)
     flux[10:15] = 0.98
 
-    def draw(**kwargs):
-        return plt.plot(phase, flux, **kwargs)
-
-    binned_curve = SimpleNamespace(plot=Mock(side_effect=draw))
-    folded_curve = SimpleNamespace(bin=Mock(return_value=binned_curve), scatter=Mock(side_effect=draw))
-    light_curve = SimpleNamespace(fold=Mock(return_value=folded_curve))
     period = 2.0 * units.day
     epoch = Time('2026-10-18T00:00:00')
+    light_curve = LightCurve(epoch + phase * units.day, flux, np.full(len(flux), .001))
+    expected = light_curve.fold(period, epoch)
     step = 0.001 * units.day
+    if binned:
+        expected = expected.bin(step)
     background, foreground = plot_background_colors(typeplotback)
 
     def check_displayed_theme():
@@ -1578,18 +1533,18 @@ def test_actual_folded_curve_honors_plotting_and_preserves_return_contract(bls_h
 
     result = namespace['FoldedLC'](light_curve, period, epoch, plot=mode, ID='synthetic', folder=str(tmp_path), bin=binned, time_bin_size=step, output=output, typeplotback=typeplotback)
 
-    light_curve.fold.assert_called_once_with(period=period, epoch_time=epoch)
-    if binned:
-        folded_curve.bin.assert_called_once_with(time_bin_size=step)
-        assert result is binned_curve
+    if binned or output:
+        assert isinstance(result, LightCurve)
+        np.testing.assert_array_equal(result.time, expected.time)
+        np.testing.assert_array_equal(result.flux, expected.flux)
+        np.testing.assert_array_equal(result.flux_err, expected.flux_err)
     else:
-        folded_curve.bin.assert_not_called()
-        assert result is (folded_curve if output else None)
-    assert binned_curve.plot.call_count == int(binned and mode != '')
-    assert folded_curve.scatter.call_count == int(not binned and mode != '')
+        assert result is None
     assert show.call_count == int(mode == 'show')
     if mode == 'save':
-        filename = tmp_path / 'synthetic_2.0_foldedlc.png'
+        files = list(tmp_path.glob('synthetic_2.0_foldedlc*.png'))
+        assert len(files) == 1
+        filename = files[0]
         print(f'Reading from {filename}...')
         image = plt.imread(filename)
         assert image.shape[0] > 100 and image.shape[1] > 100
@@ -1600,13 +1555,13 @@ def test_actual_folded_curve_honors_plotting_and_preserves_return_contract(bls_h
 
 
 def test_binned_fold_without_plotting_preserves_existing_figures(bls_helpers):
+    from miletos.light_curve import LightCurve
+
     namespace, plt = bls_helpers
-    binned_curve = object()
-    folded_curve = SimpleNamespace(bin=Mock(return_value=binned_curve))
-    light_curve = SimpleNamespace(fold=Mock(return_value=folded_curve))
+    light_curve = LightCurve([0., .1, .2], [1., .98, 1.], [.001, .001, .001])
     figure = plt.figure()
     try:
-        assert namespace['FoldedLC'](light_curve, 2.0, 0.0, bin=True) is binned_curve
+        assert isinstance(namespace['FoldedLC'](light_curve, 2.0, 0.0, bin=True), LightCurve)
         assert plt.fignum_exists(figure.number)
     finally:
         plt.close(figure)
@@ -1614,12 +1569,8 @@ def test_binned_fold_without_plotting_preserves_existing_figures(bls_helpers):
 
 @pytest.fixture
 def bls_parameter_extractors():
-    path = ROOT / 'BLStests.py'
-    print(f'Reading from {path}...')
-    definitions = [node for node in ast.parse(path.read_text()).body if isinstance(node, ast.FunctionDef) and node.name in {'test_period', 'test_duration'}]
-    namespace = {}
-    exec(compile(ast.Module(body=definitions, type_ignores=[]), str(path), 'exec'), namespace)
-    return namespace
+    module = importlib.import_module('BLStests')
+    return {name: getattr(module, name) for name in ('test_period', 'test_duration')}
 
 
 @pytest.mark.parametrize(('name', 'attribute'), [('test_period', 'period_at_max_power'), ('test_duration', 'duration_at_max_power')])
@@ -1889,39 +1840,45 @@ def test_actual_noninjection_loop_does_not_mark_completed_after_write_error(noni
     assert call('outputted') not in namespace['print'].call_args_list
 
 
-def test_actual_bls_fit_preserves_search_grid_and_successful_result(bls_helpers):
+def test_actual_bls_fit_preserves_search_grid_and_successful_result(bls_helpers, monkeypatch):
+    from miletos.light_curve import LightCurve
+
     namespace, _ = bls_helpers
-    periodogram = object()
-    curve = SimpleNamespace(to_periodogram=Mock(return_value=periodogram))
+    periodogram = BoxLeastSquares(np.arange(6) * units.day, np.ones(6)).power(
+        [2.] * units.day, [.1] * units.day)
+    power = Mock(return_value=periodogram)
+    monkeypatch.setattr('miletos.box_least_squares.BoxLeastSquares', Mock(return_value=SimpleNamespace(power=power)))
+    curve = LightCurve([0., 1., 2.], [1., .98, 1.])
 
     assert namespace['BLSfit'](curve) is periodogram
 
-    curve.to_periodogram.assert_called_once()
-    assert curve.to_periodogram.call_args.args == ()
-    arguments = curve.to_periodogram.call_args.kwargs
-    assert set(arguments) == {'method', 'period', 'duration', 'frequency_factor'}
-    assert arguments['method'] == 'bls'
-    assert arguments['frequency_factor'] == 5000
+    power.assert_called_once()
     expected = np.logspace(0.0, 1.0, 2048)
-    np.testing.assert_array_equal(arguments['period'], expected)
-    np.testing.assert_array_equal(arguments['duration'], expected * 0.01)
+    np.testing.assert_array_equal(power.call_args.args[0], expected)
+    np.testing.assert_array_equal(power.call_args.args[1], expected * 0.01)
 
 
 @pytest.mark.parametrize('error_type', [ValueError, RuntimeError, OSError])
-def test_actual_bls_fit_propagates_original_error_instead_of_returning_text(bls_helpers, error_type):
+def test_actual_bls_fit_propagates_original_error_instead_of_returning_text(bls_helpers, monkeypatch, error_type):
+    from miletos.light_curve import LightCurve
+
     namespace, _ = bls_helpers
     original = error_type('synthetic BLS fitting failure')
-    curve = SimpleNamespace(to_periodogram=Mock(side_effect=original))
+    fit = Mock(side_effect=original)
+    monkeypatch.setattr('miletos.box_least_squares.BoxLeastSquares', fit)
+    curve = LightCurve([0., 1., 2.], [1., 1., 1.])
 
     with pytest.raises(error_type) as caught:
         namespace['BLSfit'](curve)
 
     assert caught.value is original
-    curve.to_periodogram.assert_called_once()
+    fit.assert_called_once()
 
 
 @pytest.mark.parametrize('script', ['main.py', 'main_testing.py', 'main_parallel.py'])
-def test_actual_fit_drivers_stop_before_result_processing_after_fit_failure(bls_helpers, tmp_path, script):
+def test_actual_fit_drivers_stop_before_result_processing_after_fit_failure(bls_helpers, tmp_path, monkeypatch, script):
+    from miletos.light_curve import LightCurve
+
     helpers, _ = bls_helpers
     path = ROOT / script
     print(f'Reading from {path}...')
@@ -1930,7 +1887,9 @@ def test_actual_fit_drivers_stop_before_result_processing_after_fit_failure(bls_
     namespace = {'os': os, 'BLSfit': helpers['BLSfit'], 'BLSResults': result_reader, 'ID': 'synthetic', 'print': Mock()}
     exec(compile(ast.Module(body=[node], type_ignores=[]), str(path), 'exec'), namespace)
     original = ValueError('synthetic native BLS failure')
-    curve = SimpleNamespace(to_periodogram=Mock(side_effect=original))
+    fit = Mock(side_effect=original)
+    monkeypatch.setattr('miletos.box_least_squares.BoxLeastSquares', fit)
+    curve = LightCurve([0., 1., 2.], [1., 1., 1.])
     function = namespace['fit_fold_and_test']
     arguments = {name: object() for name, parameter in inspect.signature(function).parameters.items() if parameter.default is inspect.Parameter.empty}
     arguments.update(lc=curve, folder=str(tmp_path))
@@ -1939,20 +1898,16 @@ def test_actual_fit_drivers_stop_before_result_processing_after_fit_failure(bls_
         function(**arguments)
 
     assert caught.value is original
-    curve.to_periodogram.assert_called_once()
+    fit.assert_called_once()
     result_reader.assert_not_called()
     assert list(tmp_path.iterdir()) == []
 
 
 @pytest.fixture
 def transit_measurements():
-    path = ROOT / 'BLStests.py'
-    print(f'Reading from {path}...')
+    module = importlib.import_module('BLStests')
     names = {'test_depth', 'test_snr', 'test_out_of_transit_variability'}
-    definitions = [node for node in ast.parse(path.read_text()).body if isinstance(node, ast.FunctionDef) and node.name in names]
-    namespace = {'np': np}
-    exec(compile(ast.Module(body=definitions, type_ignores=[]), str(path), 'exec'), namespace)
-    return namespace
+    return {name: getattr(module, name) for name in names}
 
 
 @pytest.mark.parametrize('case', ['empty', 'no_transit', 'no_baseline'])

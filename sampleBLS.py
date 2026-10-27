@@ -52,7 +52,7 @@ period = np.sqrt((4*np.pi**2*a**3)/(6.67*10**-11*(m_s))) / (24*3600)  # [day]
 inc_min = minimum_transit_inclination(r_s, r_p * EARTH_RADIUS_M, a)  # [deg]
 inc = 90                                   # [deg]
 
-    print(f"r_s: {r_s/SOLAR_RADIUS_M} solar radii, e_r_s: {e_r_s/SOLAR_RADIUS_M}, r_p: {r_p} r_e, a: {a/1.496e+11} au, period: {period}, inc: {inc}")
+print(f"r_s: {r_s/SOLAR_RADIUS_M} solar radii, e_r_s: {e_r_s/SOLAR_RADIUS_M}, r_p: {r_p} r_e, a: {a/1.496e+11} au, period: {period}, inc: {inc}")
 
 inj = lc
 # Inject transit

@@ -70,7 +70,7 @@ with fits.open(fits_path) as hdul:
             tmag_list = tmag_values[category]
             ax.hist(tmag_list, bins=20, color='orange', edgecolor='black')
             ax.set_ylabel('Frequency')
-            ax.set_title(f'Tmag Distribution for Category: {category}')
+            ax.set_title(f'Tmag Distribution for category {category}')
 
     # Set common x-axis label
     plt.xlabel('Tmag')
@@ -90,7 +90,7 @@ with fits.open(fits_path) as hdul:
         plt.hist(tmag_values["lc_combined"], bins=20, color='green', edgecolor='black')
         plt.xlabel('Tmag')
         plt.ylabel('Frequency')
-        plt.title('Tmag Distribution for Category: lc_combined')
+        plt.title('Tmag Distribution for category lc_combined')
         plt.tight_layout()
         plt.show()
 
@@ -100,7 +100,7 @@ with fits.open(fits_path) as hdul:
         plt.hist(tmag_list, bins=20, color='orange', edgecolor='black')
         plt.xlabel('Tmag')
         plt.ylabel('Frequency')
-        plt.title(f'Tmag Distribution for Category: {category}')
+        plt.title(f'Tmag Distribution for category {category}')
         plt.tight_layout()
         plt.show()
     # print(hdul[1].header)
@@ -137,7 +137,7 @@ with fits.open(fits_path) as hdul:
         ax[i, 0].scatter(coords["ra"], coords["dec"], label=category, alpha=0.6)
         ax[i, 0].set_xlabel('Right Ascension (degrees)')
         ax[i, 1].set_ylabel('Declination (degrees)')
-        ax[i, 0].set_title(f'Scatter Plot of RA and Dec for Category: {category}')
+        ax[i, 0].set_title(f'Scatter Plot of RA and Dec for category {category}')
     plt.legend()
     plt.tight_layout()
     output_path = Path('albus/albus/graphics/scatter_plot_ra_dec_by_category.png')

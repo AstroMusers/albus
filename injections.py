@@ -1,142 +1,20 @@
-import batman
-import numpy as np
-import lightkurve as lk
-import matplotlib.pyplot as plt
-from pathlib import Path
+"""Albus names for shared Miletos transit simulation and orbital geometry."""
 
-from tdpy.verbosity import print
-
-SOLAR_MASS_KG = 2 * 10**30  # [kg / M_sun]
-SOLAR_RADIUS_M = 6.957 * 10**8  # [m / R_sun]
-EARTH_RADIUS_M = 6.371e6  # [m]
-
-
-def minimum_transit_inclination(radius_star_m, radius_planet_m, semimajor_axis_m):
-    """Return the grazing transit inclination for lengths in meters, in degrees."""
-    transit_cosine_limit = (radius_star_m + radius_planet_m) / semimajor_axis_m  # [dimensionless]
-    return np.degrees(np.arccos(np.clip(transit_cosine_limit, -1.0, 1.0)))  # [deg]
-
-
-def calc_a(mass_star, period_days):
-    mass_star_kg = mass_star * SOLAR_MASS_KG  # [kg]
-    period_seconds = period_days * 24 * 3600  # [s]
-    a = ((6.6743 * 10**-11 * mass_star_kg * period_seconds**2) / (4 * np.pi**2)) ** (1/3)  # [m]
-    return a
-
-def generate_lightcurve(
-    radius_star,                # Radius of the star (in Solar radii)
-    mass_star,                  # Mass of the star (in Solar masses)
-    radius_planet,              # Radius of the planet (in Solar radii)
-    albedo_planet,              # Albedo of the planet
-    period,                     # Orbital period of the planet (in days)
-    inclination,                # Inclination of orbit
-    # t0,
-    # time_span,                  # Total time span for observation (in days)
-    time_array,
-    a=None):                # Semi-major axis (optional, calculated if not provided)
-    
-    star_radius_m = radius_star * SOLAR_RADIUS_M  # [m]
-    planet_radius_m = radius_planet * SOLAR_RADIUS_M  # [m]
-
-    # Create a time array
-    if isinstance(time_array, float):
-        time = np.array([time_array])  # [day]
-    else:
-        time = np.array(time_array)  # [day]
-
-    if a is None:
-        a = calc_a(mass_star, period)
-        # print(f"Calculated semi-major axis (a): {a} m")
-
-    # print(f"Calculated semi-major axis (a): {a} m")
-
-    # Initialize batman parameters
-    params = batman.TransitParams()
-    if time.size == 1:
-        params.t0 = time   # Mid-transit time
-    else: 
-        params.t0 = min(time)
-    params.per = period                         # [day]
-    params.rp = planet_radius_m/star_radius_m   # Planet radius IN STELLAR RADII (NOT SUN)
-    params.a = a/star_radius_m                  # Semi-major axis in STELLAR RADII (NOT SUN)
-    params.inc = inclination                    # [deg]
-    params.ecc = 0                              # Eccentricity
-    params.w = 90                               # [deg]
-    params.u = []                               # Limb-darkening coefficients
-    params.fp = albedo_planet                       # Planet flux ratio
-    params.limb_dark = "uniform"                # Limb-darkening model
-    params.t_secondary = 0.5                    # [orbital phase]
-
-    # Generate the light curve model
-    m = batman.TransitModel(params, time, transittype='primary')
-    flux = m.light_curve(params)
-
-    # Adjust for luminosity and albedo?
-    # flux *= luminosity_star * (1 - albedo_planet)
-
-    # print(flux)
-    # Normalize the flux
-    flux = flux/np.median(flux)
-
-    # Calculate the transit duration
-    # b = (a*np.cos(np.radians(inclination)))/star_radius_m
-    # if b >= 1 + planet_radius_m/star_radius_m:
-    #     tduration = 0
-    # else:   
-    #     tduration = (period/np.pi)*np.arcsin((star_radius_m+planet_radius_m)/a + np.sqrt(1 - b**2))
-    tduration = 0  # [day]
-
-    # tess_time = np.arange(0, time[-1], 120/(24*3600))
-    # tess_flux = np.interp(tess_time, time, flux)
-    # tess_time = tess_time + t0
-
-    return time, flux, tduration
-
-def inject_transit(
-        tic_id, lc, time_array,
-        radius_star = 0.01,  # [R_sun]
-        mass_star = 0.6,  # [M_sun]
-        radius_planet = 0.1,  # [R_sun]
-        albedo_planet=0.1, 
-        period=1,  # [day]
-        inclination=90,  # [deg]
-        a=None,  # [m]
-        ID='', folder=''):
-    
-    ttime, tflux, tduration = generate_lightcurve(
-        radius_star=radius_star,            # Approx. radius of a white dwarf (solar radii)
-        mass_star= mass_star,               # Approx. mass of white dwarf
-        radius_planet= radius_planet,          # Radius of a typical Hot Jupiter
-        albedo_planet=albedo_planet,           # Typical albedo of a gas giant
-        period=period,                    # Orbital period
-        inclination=inclination,              # Inclination of transit
-        time_array=time_array,
-        a=a
-    )
-
-    inj = lk.LightCurve(time=ttime, flux=tflux*lc['flux'].value)
-    # inj = lk.LightCurve(time=ttime, flux=tflux)
-
-
-    if folder != '':
-        inj.scatter()
-        plt.xlabel("Time (days)")
-        plt.ylabel("Relative Flux")
-        plt.title(f"ID {ID} with TIC {tic_id} Light Curve")
-        output_path = Path(folder) / f'{ID}_injectedlc.png'
-        print(f'Writing to {output_path}...')
-        plt.savefig(output_path)
-        plt.close()
-
-
-    return inj
+from miletos.simulation import (
+    EARTH_RADIUS_M,
+    SOLAR_MASS_KG,
+    SOLAR_RADIUS_M,
+    generate_batman_light_curve as generate_lightcurve,
+    inject_batman_transit as inject_transit,
+    minimum_transit_inclination,
+    semimajor_axis_from_period as calc_a,
+)
 
 def inject_transit_df(df, radius_star, mass_star, radius_planet, luminosity_star, albedo_planet, period, inclination, time_array):
     ttime, tflux, tduration = generate_lightcurve(
         radius_star=radius_star,            # Approx. radius of a white dwarf
         mass_star= mass_star,               # Approx. mass of white dwarf
         radius_planet= radius_planet,       # Radius of a typical Hot Jupiter
-        luminosity_star=luminosity_star,    # White dwarf luminosity in Solar units
         albedo_planet=albedo_planet,        # Typical albedo of a gas giant
         period=period,                      # Orbital period
         inclination=inclination,            # Inclination of transit
