@@ -31,7 +31,7 @@ while lc is None:
     tic_id = int(df['TargetID'][rand])
     tic_id = 435187907
     print(tic_id)
-    try: lc = preprocess(tic_id, TICID=True)
+    try: lc = preprocess(tic_id)
     except: pass
 
 m_s = float(df['MassH'][rand]*1.989*10**30)   # [kg]

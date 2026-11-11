@@ -139,7 +139,7 @@ def fit_fold_and_test(lc, folder, ID, tic_id, r_s, e_r_s, r_p, a, P_days, inc):
     for period, t0, duration in zip(high_periods, epochs, durations):
         folded_lc = FoldedLC(
             lc, period, t0, ID=ID, plot='save', folder=folder,
-            bin=False, output=True
+            output=True
         )
 
         # Transit windows & plotting

@@ -1752,7 +1752,7 @@ def test_actual_noninjection_loop_uses_candidate_ephemerides_and_one_shared_mask
     exec(noninjection_loop, namespace)
 
     assert selector.call_args.kwargs['candidate_ephemerides'] is True
-    namespace['preprocess'].assert_called_once_with(100, TICID=True)
+    namespace['preprocess'].assert_called_once_with(100)
     assert namespace['completed_ids'] == {100, 200}
     assert namespace['print'].call_args_list.count(call('outputted')) == 1
     assert fold.call_count == mask.call_count == depth.call_count == vshape.call_count == snr.call_count == scatter.call_count == candidate_count
@@ -1795,7 +1795,7 @@ def test_actual_noninjection_sampling_uses_catalog_positions(noninjection_loop, 
     exec(noninjection_loop, namespace)
 
     assert draw.call_args_list == [call(row_count)] * 5
-    assert preprocess.call_args_list == [call(int(ids[position]), TICID=True)] * 5
+    assert preprocess.call_args_list == [call(int(ids[position]))] * 5
     assert namespace['completed_ids'] == set()
     assert namespace['print'].call_args_list == [call(int(ids[position]))] * 5
 

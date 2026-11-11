@@ -91,6 +91,22 @@ def test_dataframe_transit_injection_preserves_legacy_flux_model():
     np.testing.assert_array_equal(result['Flux'], baseline + transit_flux)
 
 
+def test_shared_preprocessing_defaults_to_tic_identifiers(monkeypatch):
+    from inspect import signature
+    from preprocess import preprocess
+    import miletos.photometry as shared
+
+    assert signature(preprocess).parameters['TICID'].default is True
+    collection, expected = object(), object()
+    download = Mock(return_value=collection)
+    prepare = Mock(return_value=expected)
+    monkeypatch.setattr(shared, 'download_tess_light_curves', download)
+    monkeypatch.setattr(shared, 'prepare_light_curve_collection', prepare)
+
+    assert preprocess('123') is expected
+    download.assert_called_once_with('123', tic_id=True)
+
+
 @pytest.mark.parametrize('tic_id', [False, True])
 @pytest.mark.parametrize('outcome', ['empty', 'failure', 'success'])
 def test_shared_download_wrapper_retains_targets_options_and_failure_behavior(monkeypatch, tic_id, outcome):

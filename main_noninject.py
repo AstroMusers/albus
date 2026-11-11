@@ -31,14 +31,14 @@ for i in tqdm(range(5)):
         
         tic_id = ID
         
-        lc = preprocess(tic_id, TICID=True)
+        lc = preprocess(tic_id)
 
         if lc is not None:
             # Run BLS
             results = BLSfit(lc)
             high_periods, high_powers, best_period, epochs, durations = BLSResults(results, folder='WD_Plots6/Noninjections', ID=ID, candidate_ephemerides=True)
             for period, t0, duration in zip(high_periods, epochs, durations):
-                FoldedLC(lc, period, t0, ID=ID, folder='WD_Plots6/Noninjections', bin=False)                
+                FoldedLC(lc, period, t0, ID=ID, folder='WD_Plots6/Noninjections')
                 # Run tests
                 transit_mask = create_transit_mask_manual(lc['time'], period, t0, duration)
                 depth = test_depth(lc['time'], lc['flux'], transit_mask)

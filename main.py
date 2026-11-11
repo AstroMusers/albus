@@ -144,7 +144,7 @@ while True:
         )
         plt.close('all')
 
-        fit_fold_and_test(lc, folder='../../WD_Plots/Noninjected', output_file=noninj_output_file, Injected=False)
+        fit_fold_and_test(lc, folder='../../WD_Plots/Noninjected', output_file=noninj_output_file)
         fit_fold_and_test(inj, folder='../../WD_Plots/Injected', output_file=inj_output_file, Injected=True)
 
     except Exception as e:
